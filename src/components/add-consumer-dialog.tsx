@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import {
   Select,
   SelectContent,
@@ -343,13 +342,34 @@ export function AddConsumerDialog({ onConsumerAdded }: AddConsumerDialogProps) {
               
               <div className="space-y-2">
                 <Label htmlFor="address">Service Address</Label>
-                <Textarea
-                  id="address"
-                  placeholder="123 Main Street, Barangay, City, Province"
+                <Select
                   value={formData.address}
-                  onChange={(e) => handleInputChange("address", e.target.value)}
-                  rows={2}
-                />
+                  onValueChange={(value) => handleInputChange("address", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select service address" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="P-1, Brgy. 6 Bañadero, Legazpi City">
+                      P-1, Brgy. 6 Bañadero, Legazpi City
+                    </SelectItem>
+                    <SelectItem value="P-2, Brgy. 6 Bañadero, Legazpi City">
+                      P-2, Brgy. 6 Bañadero, Legazpi City
+                    </SelectItem>
+                    <SelectItem value="P-3, Brgy. 6 Bañadero, Legazpi City">
+                      P-3, Brgy. 6 Bañadero, Legazpi City
+                    </SelectItem>
+                    <SelectItem value="P-4, Brgy. 6 Bañadero, Legazpi City">
+                      P-4, Brgy. 6 Bañadero, Legazpi City
+                    </SelectItem>
+                    <SelectItem value="P-5, Brgy. 6 Bañadero, Legazpi City">
+                      P-5, Brgy. 6 Bañadero, Legazpi City
+                    </SelectItem>
+                    <SelectItem value="P-6, Brgy. 6 Bañadero, Legazpi City">
+                      P-6, Brgy. 6 Bañadero, Legazpi City
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               
               <div className="space-y-2">
