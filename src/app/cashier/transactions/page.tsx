@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -29,7 +29,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { CashierLayout } from "@/components/cashier-sidebar"
@@ -52,9 +51,26 @@ export default function CashierTransactionsPage() {
     fetchTransactions()
   }, [])
 
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query)
+    
+    let filtered = transactions
+
+    // Filter by search query
+    if (query.trim()) {
+      filtered = filtered.filter(transaction => 
+        transaction.consumer?.accounts?.full_name?.toLowerCase().includes(query.toLowerCase()) ||
+        transaction.consumer?.water_meter_no?.toLowerCase().includes(query.toLowerCase()) ||
+        transaction.consumer?.accounts?.email?.toLowerCase().includes(query.toLowerCase())
+      )
+    }
+
+    setFilteredTransactions(filtered)
+  }, [transactions])
+
   useEffect(() => {
     handleSearch(searchQuery)
-  }, [transactions, searchQuery])
+  }, [transactions, searchQuery, handleSearch])
 
   const fetchTransactions = async () => {
     try {
@@ -85,7 +101,58 @@ export default function CashierTransactionsPage() {
       }
 
       // Transform the data to match our BillingWithDetails interface
-      const transformedTransactions = (data || []).map((billing: any) => {
+      interface SupabaseBillingResult {
+        id: string
+        consumer_id: string
+        meter_reading_id: string | null
+        billing_month: string
+        consumption_10_or_below: number
+        amount_10_or_below: number
+        amount_10_or_below_with_discount: number
+        consumption_over_10: number
+        amount_over_10: number
+        amount_current_billing: number
+        arrears_to_be_paid: number
+        total_amount_due: number
+        due_date: string
+        arrears_after_due_date: number | null
+        payment_status: string
+        payment_date: string | null
+        amount_paid: number
+        created_at: string
+        updated_at: string
+        consumers?: {
+          id: string
+          water_meter_no: string
+          consumer_id: number | null
+          registered_voter: boolean | null
+          created_at: string
+          updated_at: string
+          accounts?: {
+            id: number
+            email: string | null
+            password: string | null
+            created_at: string
+            full_name: string | null
+            full_address: string | null
+            mobile_no: number | null
+            user_type: string | null
+          } | null
+        } | null
+        bawasa_meter_readings?: {
+          id: string
+          consumer_id: string
+          reading_date: string
+          previous_reading: number
+          present_reading: number
+          consumption_cubic_meters: number | null
+          meter_image: string | null
+          created_at: string
+          updated_at: string
+        } | null
+      }
+
+      const transformedTransactions = (data || []).map((billing: SupabaseBillingResult): BillingWithDetails => {
         const consumer = billing.consumers
         const account = consumer?.accounts
         const meterReading = billing.bawasa_meter_readings
@@ -94,11 +161,11 @@ export default function CashierTransactionsPage() {
           ...billing,
           consumer: consumer ? {
             ...consumer,
-            accounts: account || null
-          } : null,
-          account: account || null,
-          meter_reading: meterReading || null
-        }
+            accounts: account || undefined
+          } : undefined,
+          account: account || undefined,
+          meter_reading: meterReading || undefined
+        } as BillingWithDetails
       })
 
       setTransactions(transformedTransactions)
@@ -110,22 +177,6 @@ export default function CashierTransactionsPage() {
     }
   }
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query)
-    
-    let filtered = transactions
-
-    // Filter by search query
-    if (query.trim()) {
-      filtered = filtered.filter(transaction => 
-        transaction.consumer?.accounts?.full_name?.toLowerCase().includes(query.toLowerCase()) ||
-        transaction.consumer?.water_meter_no?.toLowerCase().includes(query.toLowerCase()) ||
-        transaction.consumer?.accounts?.email?.toLowerCase().includes(query.toLowerCase())
-      )
-    }
-
-    setFilteredTransactions(filtered)
-  }
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-PH', {
@@ -179,7 +230,7 @@ export default function CashierTransactionsPage() {
     
     return () => {
       window.removeEventListener('afterprint', handleAfterPrint)
-    }
+  }
   }, [])
 
   return (
