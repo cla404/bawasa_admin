@@ -14,31 +14,26 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { 
-  Droplets, 
   Search, 
-  Filter, 
   MoreHorizontal,
+  Eye,
+  Loader2,
+  AlertCircle,
   CheckCircle,
   XCircle,
-  Clock,
-  Eye,
-  TrendingUp,
-  Loader2,
-  AlertCircle
+  Clock
 } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { MeterReadingsService, MeterReadingWithUser, LatestMeterReadingByUser } from "@/lib/meter-readings-service"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { supabase } from "@/lib/supabase"
 import { UserMeterReadingsDialog } from "@/components/UserMeterReadingsDialog"
-import { MeterReadingDetailsDialog } from "@/components/MeterReadingDetailsDialog"
 
 export default function MeterReadingsPage() {
   const [meterReadings, setMeterReadings] = useState<LatestMeterReadingByUser[]>([])
@@ -46,7 +41,7 @@ export default function MeterReadingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedUser, setSelectedUser] = useState<{
     id: string
@@ -54,14 +49,51 @@ export default function MeterReadingsPage() {
     email: string
   } | null>(null)
   const [isCreatingReadings, setIsCreatingReadings] = useState(false)
-  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
-  const [selectedReading, setSelectedReading] = useState<LatestMeterReadingByUser | null>(null)
 
   // Load meter readings on component mount
   useEffect(() => {
     loadMeterReadings()
     getCurrentUser()
   }, [])
+
+  // Auto-search with debouncing when searchQuery changes
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
+  useEffect(() => {
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
+    // If search query is empty, load all readings
+    if (!searchQuery.trim()) {
+      loadMeterReadings()
+      return
+    }
+
+    // Debounce the search - wait 300ms after user stops typing
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const readings = await MeterReadingsService.searchMeterReadings(searchQuery)
+        // Convert to LatestMeterReadingByUser format by grouping
+        const groupedReadings = groupReadingsByUser(readings)
+        setMeterReadings(groupedReadings)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to search meter readings')
+      } finally {
+        setLoading(false)
+      }
+    }, 300)
+
+    // Cleanup timeout on unmount or when searchQuery changes
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [searchQuery])
 
   const loadMeterReadings = async () => {
     try {
@@ -167,18 +199,13 @@ export default function MeterReadingsPage() {
     )
   }
 
-  const handleUserClick = (reading: LatestMeterReadingByUser) => {
+  const handleViewDetails = (reading: LatestMeterReadingByUser) => {
     setSelectedUser({
       id: reading.consumer_id,
       name: reading.user_name,
       email: reading.user_email
     })
     setDialogOpen(true)
-  }
-
-  const handleViewDetails = (reading: LatestMeterReadingByUser) => {
-    setSelectedReading(reading)
-    setDetailsDialogOpen(true)
   }
 
   // Filter readings based on current filters
@@ -305,38 +332,8 @@ export default function MeterReadingsPage() {
                   className="pl-8" 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                 />
               </div>
-              <Button variant="outline" onClick={handleSearch} disabled={loading}>
-                <Search className="h-4 w-4 mr-2" />
-                Search
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline">
-                    <Filter className="h-4 w-4 mr-2" />
-                    Filter by Status
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => handleFilterByStatus('all')}>
-                    All Readings
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleFilterByStatus('unpaid')}>
-                    Unpaid
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleFilterByStatus('partial')}>
-                    Partial
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleFilterByStatus('paid')}>
-                    Paid
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleFilterByStatus('overdue')}>
-                    Overdue
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </div>
           </CardHeader>
           <CardContent>
@@ -380,12 +377,8 @@ export default function MeterReadingsPage() {
                       <TableRow key={reading.id}>
                         <TableCell className="font-medium">{reading.id.slice(0, 8)}...</TableCell>
                         <TableCell>
-                          <div 
-                            className="cursor-pointer hover:bg-gray-50 p-2 rounded-md transition-colors"
-                            onClick={() => handleUserClick(reading)}
-                            title="Click to view user's meter readings history"
-                          >
-                            <div className="font-medium text-blue-600 hover:text-blue-800">{reading.user_name || 'Unknown User'}</div>
+                          <div>
+                            <div className="font-medium">{reading.user_name || 'Unknown User'}</div>
                             <div className="text-sm text-muted-foreground">{reading.user_email}</div>
                           </div>
                         </TableCell>
@@ -439,12 +432,6 @@ export default function MeterReadingsPage() {
         />
       )}
 
-      {/* Meter Reading Details Dialog */}
-      <MeterReadingDetailsDialog
-        open={detailsDialogOpen}
-        onOpenChange={setDetailsDialogOpen}
-        reading={selectedReading}
-      />
     </AdminLayout>
   )
 }

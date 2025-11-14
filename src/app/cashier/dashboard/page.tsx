@@ -33,6 +33,19 @@ interface RecentTransaction {
   status: string
 }
 
+interface BillingTransaction {
+  id: string
+  amount_paid: number | null
+  payment_date: string | null
+  payment_status: string | null
+  consumers?: {
+    water_meter_no: string | null
+    accounts?: {
+      full_name: string | null
+    } | null
+  } | null
+}
+
 export default function CashierDashboard() {
   const [stats, setStats] = useState<DashboardStats>({
     allTransactions: 0,
@@ -52,7 +65,7 @@ export default function CashierDashboard() {
     try {
       setLoading(true)
       setError(null)
-      
+
       // Fetch all transactions (not filtered by date)
       const { data: transactions, error: transactionsError } = await supabase
         .from('bawasa_billings')
@@ -101,7 +114,7 @@ export default function CashierDashboard() {
       })
 
       // Format recent transactions
-      const formattedTransactions = transactions?.slice(0, 5).map((t: any) => ({
+      const formattedTransactions = (transactions as unknown as BillingTransaction[] | null)?.slice(0, 5).map((t) => ({
         id: t.id,
         consumer_name: t.consumers?.accounts?.full_name || 'Unknown',
         water_meter_no: t.consumers?.water_meter_no || 'N/A',
