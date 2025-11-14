@@ -206,10 +206,7 @@ export default function CashierManagementPage() {
                   onChange={(e) => handleSearch(e.target.value)}
                 />
               </div>
-              <Button variant="outline">
-                <Filter className="h-4 w-4 mr-2" />
-                Filter
-              </Button>
+              
             </div>
           </CardHeader>
           <CardContent>

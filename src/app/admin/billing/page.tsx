@@ -38,7 +38,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { BillingService, BillingWithDetails } from "@/lib/billing-service"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { ViewBillingDetailsDialog } from "@/components/view-billing-details-dialog"
 import { PrintableBill } from "@/components/printable-bill"
 import { Printer, Eye } from "lucide-react"
@@ -223,6 +223,57 @@ export default function BillingManagementPage() {
     fetchBillings()
   }, [])
 
+  // Auto-search with debouncing when searchQuery changes
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  
+  useEffect(() => {
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
+    // If search query is empty, reset to original billings
+    if (!searchQuery.trim()) {
+      setFilteredBillings(billings)
+      return
+    }
+
+    // Debounce the search - wait 300ms after user stops typing
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        setLoading(true)
+        setError(null)
+        const { data, error } = await BillingService.searchBillings(searchQuery)
+        
+        if (error) {
+          setError(error.message || 'Failed to search billings')
+          return
+        }
+        
+        setFilteredBillings(data || [])
+      } catch (err) {
+        setError('An unexpected error occurred')
+      } finally {
+        setLoading(false)
+      }
+    }, 300)
+
+    // Cleanup timeout on unmount or when searchQuery changes
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery])
+
+  // Update filteredBillings when billings change (if no search query)
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredBillings(billings)
+    }
+  }, [billings, searchQuery])
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -270,35 +321,9 @@ export default function BillingManagementPage() {
                   className="pl-8" 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
                 />
               </div>
-              <Button variant="outline" onClick={handleSearch} disabled={loading}>
-                <Search className="h-4 w-4 mr-2" />
-                Search
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => handleStatusFilter('all')}>
-                    All Bills
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleStatusFilter('unpaid')}>
-                    Unpaid
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleStatusFilter('partial')}>
-                    Partial
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleStatusFilter('paid')}>
-                    Paid
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleStatusFilter('overdue')}>
-                    Overdue
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              
             </div>
           </CardHeader>
           <CardContent>

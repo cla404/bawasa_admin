@@ -220,7 +220,7 @@ export default function AdminDashboardPage() {
                   <p className="text-muted-foreground">No meter readings found</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
                   {meterReadings.map((reading) => (
                     <div key={reading.id} className="flex items-center justify-between p-3 border rounded-lg">
                       <div className="flex items-center space-x-3">
@@ -266,7 +266,7 @@ export default function AdminDashboardPage() {
                   <p className="text-muted-foreground">No issues found</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
                   {issues.map((issue) => (
                     <div key={issue.id} className="flex items-center justify-between p-3 border rounded-lg">
                       <div className="flex items-center space-x-3">
