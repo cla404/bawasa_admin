@@ -23,8 +23,17 @@ interface AdminLayoutProps {
   children: React.ReactNode
 }
 
+interface AuthUser {
+  id: string
+  email?: string
+  user_metadata?: {
+    avatar_url?: string
+  }
+  avatar_url?: string
+}
+
 export function AdminLayout({ children }: AdminLayoutProps) {
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
@@ -84,7 +93,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     return null // Will redirect to signin
   }
 
-  const getUserInitials = (email: string) => {
+  const getUserInitials = (email?: string) => {
+    if (!email) return "AD"
     return email.substring(0, 2).toUpperCase()
   }
 
@@ -134,12 +144,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => router.push('/admin/profile')}>
                     <User className="mr-2 h-4 w-4" />
                     <span>Profile</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <span>Settings</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleSignOut}>
