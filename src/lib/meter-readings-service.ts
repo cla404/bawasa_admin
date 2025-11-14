@@ -7,6 +7,7 @@ export interface MeterReading {
   previous_reading: number | null
   present_reading: number | null
   consumption_cubic_meters: number | null
+  meter_image: string | null
   created_at: string
   updated_at: string
 }
@@ -22,6 +23,25 @@ export interface MeterReadingWithUser extends MeterReading {
 
 export interface LatestMeterReadingByUser extends MeterReadingWithUser {
   total_readings: number
+}
+
+// Interfaces for Supabase query results
+interface SupabaseConsumer {
+  water_meter_no: string | null
+  accounts?: {
+    email: string | null
+    full_name: string | null
+  } | null
+}
+
+interface SupabaseBilling {
+  payment_status: string | null
+  billing_month: string | null
+}
+
+interface SupabaseMeterReadingResult extends MeterReading {
+  consumers?: SupabaseConsumer | null
+  bawasa_billings?: SupabaseBilling[] | null
 }
 
 export class MeterReadingsService {
@@ -60,10 +80,10 @@ export class MeterReadingsService {
       const consumerGroups = new Map<string, MeterReadingWithUser[]>()
       
       // Transform and group the data
-      const transformedData = (data || []).map(reading => {
-        const consumer = reading.consumers as any
-        const account = consumer?.accounts as any
-        const billing = reading.bawasa_billings as any
+      const transformedData = (data || []).map((reading: SupabaseMeterReadingResult) => {
+        const consumer = reading.consumers
+        const account = consumer?.accounts
+        const billing = reading.bawasa_billings
         
         return {
           id: reading.id,
@@ -73,13 +93,14 @@ export class MeterReadingsService {
           previous_reading: reading.previous_reading,
           present_reading: reading.present_reading,
           consumption_cubic_meters: reading.consumption_cubic_meters,
+          meter_image: reading.meter_image || null,
           created_at: reading.created_at,
           updated_at: reading.updated_at,
           water_meter_no: consumer?.water_meter_no || '',
           user_email: account?.email || '',
           user_name: account?.full_name || 'Unknown User',
-          payment_status: billing?.[0]?.payment_status || 'unpaid',
-          billing_month: billing?.[0]?.billing_month || null
+          payment_status: (billing?.[0]?.payment_status as 'unpaid' | 'partial' | 'paid' | 'overdue') || 'unpaid',
+          billing_month: billing?.[0]?.billing_month || undefined
         }
       })
 
@@ -93,7 +114,7 @@ export class MeterReadingsService {
 
       // Get latest reading for each consumer and add total count
       const latestReadings: LatestMeterReadingByUser[] = []
-      consumerGroups.forEach((readings, consumerId) => {
+      consumerGroups.forEach((readings) => {
         const latestReading = readings[0] // Already sorted by created_at desc
         latestReadings.push({
           ...latestReading,
@@ -141,10 +162,10 @@ export class MeterReadingsService {
       }
 
       // Transform the data to match our interface
-      return (data || []).map(reading => {
-        const consumer = reading.consumers as any
-        const account = consumer?.accounts as any
-        const billing = reading.bawasa_billings as any
+      return (data || []).map((reading: SupabaseMeterReadingResult) => {
+        const consumer = reading.consumers
+        const account = consumer?.accounts
+        const billing = reading.bawasa_billings
         
         return {
           id: reading.id,
@@ -154,13 +175,14 @@ export class MeterReadingsService {
           previous_reading: reading.previous_reading,
           present_reading: reading.present_reading,
           consumption_cubic_meters: reading.consumption_cubic_meters,
+          meter_image: reading.meter_image || null,
           created_at: reading.created_at,
           updated_at: reading.updated_at,
           water_meter_no: consumer?.water_meter_no || '',
           user_email: account?.email || '',
           user_name: account?.full_name || 'Unknown User',
-          payment_status: billing?.[0]?.payment_status || 'unpaid',
-          billing_month: billing?.[0]?.billing_month || null
+          payment_status: (billing?.[0]?.payment_status as 'unpaid' | 'partial' | 'paid' | 'overdue') || 'unpaid',
+          billing_month: billing?.[0]?.billing_month || undefined
         }
       })
     } catch (error) {
@@ -200,10 +222,10 @@ export class MeterReadingsService {
       }
 
       // Transform the data to match our interface
-      return (data || []).map(reading => {
-        const consumer = reading.consumers as any
-        const account = consumer?.accounts as any
-        const billing = reading.bawasa_billings as any
+      return (data || []).map((reading: SupabaseMeterReadingResult) => {
+        const consumer = reading.consumers
+        const account = consumer?.accounts
+        const billing = reading.bawasa_billings
         
         return {
           id: reading.id,
@@ -213,13 +235,14 @@ export class MeterReadingsService {
           previous_reading: reading.previous_reading,
           present_reading: reading.present_reading,
           consumption_cubic_meters: reading.consumption_cubic_meters,
+          meter_image: reading.meter_image || null,
           created_at: reading.created_at,
           updated_at: reading.updated_at,
           water_meter_no: consumer?.water_meter_no || '',
           user_email: account?.email || '',
           user_name: account?.full_name || 'Unknown User',
-          payment_status: billing?.[0]?.payment_status || 'unpaid',
-          billing_month: billing?.[0]?.billing_month || null
+          payment_status: (billing?.[0]?.payment_status as 'unpaid' | 'partial' | 'paid' | 'overdue') || 'unpaid',
+          billing_month: billing?.[0]?.billing_month || undefined
         }
       })
     } catch (error) {
@@ -230,14 +253,21 @@ export class MeterReadingsService {
 
   /**
    * Update meter reading status (updates the billing record)
+   * @param readingId - The meter reading ID
+   * @param status - The payment status to set
+   * @param _confirmedBy - Reserved for future use (who confirmed the status)
    */
   static async updateMeterReadingStatus(
     readingId: string, 
     status: 'unpaid' | 'partial' | 'paid' | 'overdue',
-    confirmedBy: string
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _confirmedBy?: string
   ): Promise<void> {
     try {
-      const updateData: any = {
+      const updateData: {
+        payment_status: string
+        updated_at: string
+      } = {
         payment_status: status,
         updated_at: new Date().toISOString()
       }
@@ -298,6 +328,44 @@ export class MeterReadingsService {
    */
   static async searchMeterReadings(query: string): Promise<MeterReadingWithUser[]> {
     try {
+      // First, search for accounts matching the query
+      const { data: accounts, error: accountsError } = await supabase
+        .from('accounts')
+        .select('id')
+        .or(`full_name.ilike.%${query}%,email.ilike.%${query}%`)
+
+      if (accountsError) {
+        console.error('Error searching accounts:', accountsError)
+        throw new Error(`Failed to search accounts: ${accountsError.message}`)
+      }
+
+      // Get consumer_ids for these accounts
+      const accountIds = (accounts || []).map(acc => acc.id)
+      
+      if (accountIds.length === 0) {
+        // No matching accounts found, return empty array
+        return []
+      }
+
+      // Get consumers for these accounts
+      const { data: consumers, error: consumersError } = await supabase
+        .from('consumers')
+        .select('id')
+        .in('consumer_id', accountIds)
+
+      if (consumersError) {
+        console.error('Error fetching consumers:', consumersError)
+        throw new Error(`Failed to fetch consumers: ${consumersError.message}`)
+      }
+
+      const consumerIds = (consumers || []).map(cons => cons.id)
+      
+      if (consumerIds.length === 0) {
+        // No matching consumers found, return empty array
+        return []
+      }
+
+      // Now fetch meter readings for these consumer_ids
       const { data, error } = await supabase
         .from('bawasa_meter_readings')
         .select(`
@@ -315,7 +383,7 @@ export class MeterReadingsService {
           )
         `)
         .eq('reading_assigned', true)
-        .or(`consumers.accounts.full_name.ilike.%${query}%,consumers.accounts.email.ilike.%${query}%`)
+        .in('consumer_id', consumerIds)
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -324,10 +392,10 @@ export class MeterReadingsService {
       }
 
       // Transform the data to match our interface
-      return (data || []).map(reading => {
-        const consumer = reading.consumers as any
-        const account = consumer?.accounts as any
-        const billing = reading.bawasa_billings as any
+      return (data || []).map((reading: SupabaseMeterReadingResult) => {
+        const consumer = reading.consumers
+        const account = consumer?.accounts
+        const billing = reading.bawasa_billings
         
         return {
           id: reading.id,
@@ -337,13 +405,14 @@ export class MeterReadingsService {
           previous_reading: reading.previous_reading,
           present_reading: reading.present_reading,
           consumption_cubic_meters: reading.consumption_cubic_meters,
+          meter_image: reading.meter_image || null,
           created_at: reading.created_at,
           updated_at: reading.updated_at,
           water_meter_no: consumer?.water_meter_no || '',
           user_email: account?.email || '',
           user_name: account?.full_name || 'Unknown User',
-          payment_status: billing?.[0]?.payment_status || 'unpaid',
-          billing_month: billing?.[0]?.billing_month || null
+          payment_status: (billing?.[0]?.payment_status as 'unpaid' | 'partial' | 'paid' | 'overdue') || 'unpaid',
+          billing_month: billing?.[0]?.billing_month || undefined
         }
       })
     } catch (error) {
@@ -383,10 +452,10 @@ export class MeterReadingsService {
       }
 
       // Transform the data to match our interface
-      return (data || []).map(reading => {
-        const consumer = reading.consumers as any
-        const account = consumer?.accounts as any
-        const billing = reading.bawasa_billings as any
+      return (data || []).map((reading: SupabaseMeterReadingResult) => {
+        const consumer = reading.consumers
+        const account = consumer?.accounts
+        const billing = reading.bawasa_billings
         
         return {
           id: reading.id,
@@ -396,13 +465,14 @@ export class MeterReadingsService {
           previous_reading: reading.previous_reading,
           present_reading: reading.present_reading,
           consumption_cubic_meters: reading.consumption_cubic_meters,
+          meter_image: reading.meter_image || null,
           created_at: reading.created_at,
           updated_at: reading.updated_at,
           water_meter_no: consumer?.water_meter_no || '',
           user_email: account?.email || '',
           user_name: account?.full_name || 'Unknown User',
-          payment_status: billing?.[0]?.payment_status || 'unpaid',
-          billing_month: billing?.[0]?.billing_month || null
+          payment_status: (billing?.[0]?.payment_status as 'unpaid' | 'partial' | 'paid' | 'overdue') || 'unpaid',
+          billing_month: billing?.[0]?.billing_month || undefined
         }
       })
     } catch (error) {
@@ -416,7 +486,7 @@ export class MeterReadingsService {
    * This is called when transitioning to a new billing month
    * Meter readers will fill in the readings via the mobile app
    */
-  static async createEmptyReadingsForNewMonth(month: string, year: number): Promise<{ data: MeterReading[] | null; error: any }> {
+  static async createEmptyReadingsForNewMonth(month: string, year: number): Promise<{ data: MeterReading[] | null; error: unknown }> {
     try {
       console.log(`🔄 Creating empty meter readings for ${month} ${year}...`)
 
@@ -506,7 +576,7 @@ export class MeterReadingsService {
       }
 
       console.log(`✅ Created ${insertedReadings?.length || 0} empty meter readings for ${month} ${year}`)
-      return { data: insertedReadings as any, error: null }
+      return { data: insertedReadings as MeterReading[], error: null }
     } catch (error) {
       console.error('Error in createEmptyReadingsForNewMonth:', error)
       return { data: null, error }

@@ -61,11 +61,21 @@ export interface BillingWithDetails extends Billing {
   meter_reading?: MeterReading
 }
 
+// Interfaces for Supabase query results
+interface SupabaseBillingConsumer extends Consumer {
+  accounts?: Account | null
+}
+
+interface SupabaseBillingResult extends Billing {
+  consumers?: SupabaseBillingConsumer | null
+  bawasa_meter_readings?: MeterReading | null
+}
+
 export class BillingService {
   /**
    * Fetch all billings with consumer and account information
    */
-  static async getAllBillings(): Promise<{ data: BillingWithDetails[] | null; error: any }> {
+  static async getAllBillings(): Promise<{ data: BillingWithDetails[] | null; error: unknown }> {
     try {
       console.log('🔍 Fetching billings from new table structure...')
       
@@ -99,20 +109,20 @@ export class BillingService {
       }
 
       // Transform the data to match our interface
-      const transformedBillings = billings.map(billing => {
-        const consumer = billing.consumers as any
-        const account = consumer?.accounts as any
-        const meterReading = billing.bawasa_meter_readings as any
+      const transformedBillings = billings.map((billing: SupabaseBillingResult): BillingWithDetails => {
+        const consumer = billing.consumers
+        const account = consumer?.accounts
+        const meterReading = billing.bawasa_meter_readings
 
         return {
           ...billing,
           consumer: consumer ? {
             ...consumer,
-            accounts: account || null
-          } : null,
-          account: account || null,
-          meter_reading: meterReading || null
-        }
+            accounts: account || undefined
+          } : undefined,
+          account: account || undefined,
+          meter_reading: meterReading || undefined
+        } as BillingWithDetails
       })
 
       console.log('✅ Successfully fetched billings:', transformedBillings.length, 'billings')
@@ -126,7 +136,7 @@ export class BillingService {
   /**
    * Fetch billings by payment status
    */
-  static async getBillingsByStatus(status: 'unpaid' | 'partial' | 'paid' | 'overdue'): Promise<{ data: BillingWithDetails[] | null; error: any }> {
+  static async getBillingsByStatus(status: 'unpaid' | 'partial' | 'paid' | 'overdue'): Promise<{ data: BillingWithDetails[] | null; error: unknown }> {
     try {
       const { data: billings, error: billingsError } = await supabase
         .from('bawasa_billings')
@@ -152,20 +162,20 @@ export class BillingService {
       }
 
       // Transform the data
-      const transformedBillings = billings?.map(billing => {
-        const consumer = billing.consumers as any
-        const account = consumer?.accounts as any
-        const meterReading = billing.bawasa_meter_readings as any
+      const transformedBillings = billings?.map((billing: SupabaseBillingResult): BillingWithDetails => {
+        const consumer = billing.consumers
+        const account = consumer?.accounts
+        const meterReading = billing.bawasa_meter_readings
 
         return {
           ...billing,
           consumer: consumer ? {
             ...consumer,
-            accounts: account || null
-          } : null,
-          account: account || null,
-          meter_reading: meterReading || null
-        }
+            accounts: account || undefined
+          } : undefined,
+          account: account || undefined,
+          meter_reading: meterReading || undefined
+        } as BillingWithDetails
       }) || []
 
       return { data: transformedBillings, error: null }
@@ -178,72 +188,104 @@ export class BillingService {
   /**
    * Search billings by consumer name, email, or water meter number
    */
-  static async searchBillings(query: string): Promise<{ data: BillingWithDetails[] | null; error: any }> {
+  static async searchBillings(query: string): Promise<{ data: BillingWithDetails[] | null; error: unknown }> {
     try {
-      // Search by consumer water meter number
-      const { data: billingsByMeter, error: meterError } = await supabase
-        .from('bawasa_billings')
-        .select(`
-          *,
-          consumers!consumer_id (
-            *,
-            accounts!consumer_id (
-              *
-            )
-          ),
-          bawasa_meter_readings!meter_reading_id (
-            *
-          )
-        `)
-        .eq('reading_assigned', true)
-        .ilike('consumers.water_meter_no', `%${query}%`)
-        .order('created_at', { ascending: false })
+      // First, search for accounts matching the query
+      const { data: accounts, error: accountsError } = await supabase
+        .from('accounts')
+        .select('id')
+        .or(`full_name.ilike.%${query}%,email.ilike.%${query}%`)
 
-      // Search by account details
-      const { data: billingsByAccount, error: accountError } = await supabase
-        .from('bawasa_billings')
-        .select(`
-          *,
-          consumers!consumer_id (
-            *,
-            accounts!consumer_id (
-              *
-            )
-          ),
-          bawasa_meter_readings!meter_reading_id (
-            *
-          )
-        `)
-        .eq('reading_assigned', true)
-        .or(`consumers.accounts.email.ilike.%${query}%,consumers.accounts.full_name.ilike.%${query}%`)
-        .order('created_at', { ascending: false })
-
-      if (meterError || accountError) {
-        console.error('❌ Billings search failed:', meterError || accountError)
-        return { data: null, error: meterError || accountError }
+      if (accountsError) {
+        console.error('Error searching accounts:', accountsError)
+        return { data: null, error: accountsError }
       }
 
-      // Combine and deduplicate results
-      const allBillings = [...(billingsByMeter || []), ...(billingsByAccount || [])]
-      const uniqueBillings = allBillings.filter((billing, index, self) => 
-        index === self.findIndex(b => b.id === billing.id)
+      // Get consumer_ids for these accounts
+      const accountIds = (accounts || []).map(acc => acc.id)
+      
+      // Get consumers for these accounts and also search by water meter number
+      const consumerQueries: Array<Promise<{ data: { id: string }[] | null; error: unknown }>> = []
+      
+      if (accountIds.length > 0) {
+        consumerQueries.push(
+          Promise.resolve(
+            supabase
+              .from('consumers')
+              .select('id')
+              .in('consumer_id', accountIds)
+          ).then(result => ({ data: result.data, error: result.error as unknown }))
+        )
+      }
+
+      // Also search consumers by water meter number
+      consumerQueries.push(
+        Promise.resolve(
+          supabase
+            .from('consumers')
+            .select('id')
+            .ilike('water_meter_no', `%${query}%`)
+        ).then(result => ({ data: result.data, error: result.error as unknown }))
       )
 
+      const consumerResults = await Promise.all(consumerQueries)
+      const consumerIdsSet = new Set<string>()
+      
+      consumerResults.forEach(result => {
+        if (result.error) {
+          console.error('Error fetching consumers:', result.error)
+        } else {
+          (result.data || []).forEach((cons: { id: string }) => consumerIdsSet.add(cons.id))
+        }
+      })
+
+      const consumerIds = Array.from(consumerIdsSet)
+      
+      if (consumerIds.length === 0) {
+        // No matching consumers found, return empty array
+        return { data: [], error: null }
+      }
+
+      // Now fetch billings for these consumer_ids - only unpaid bills
+      const { data: billings, error: billingsError } = await supabase
+        .from('bawasa_billings')
+        .select(`
+          *,
+          consumers!consumer_id (
+            *,
+            accounts!consumer_id (
+              *
+            )
+          ),
+          bawasa_meter_readings!meter_reading_id (
+            *
+          )
+        `)
+        .eq('reading_assigned', true)
+        .eq('payment_status', 'unpaid')
+        .in('consumer_id', consumerIds)
+        .order('created_at', { ascending: false })
+
+      if (billingsError) {
+        console.error('❌ Billings search failed:', billingsError)
+        return { data: null, error: billingsError }
+      }
+
       // Transform the data
-      const transformedBillings = uniqueBillings.map(billing => {
-        const consumer = billing.consumers as any
-        const account = consumer?.accounts as any
-        const meterReading = billing.bawasa_meter_readings as any
+      const transformedBillings = (billings || []).map((billing: SupabaseBillingResult): BillingWithDetails => {
+        const consumer = billing.consumers
+        const account = consumer?.accounts
+        const meterReading = billing.bawasa_meter_readings
 
         return {
           ...billing,
           consumer: consumer ? {
             ...consumer,
-            accounts: account || null
-          } : null,
-          account: account || null,
-          meter_reading: meterReading || null
-        }
+            accounts: account || undefined
+          } : undefined,
+          account: account || undefined,
+          meter_reading: meterReading || undefined
+        } as BillingWithDetails
       })
 
       return { data: transformedBillings, error: null }
@@ -256,9 +298,14 @@ export class BillingService {
   /**
    * Update billing payment status
    */
-  static async updateBillingStatus(id: string, status: 'unpaid' | 'partial' | 'paid' | 'overdue'): Promise<{ data: Billing | null; error: any }> {
+  static async updateBillingStatus(id: string, status: 'unpaid' | 'partial' | 'paid' | 'overdue'): Promise<{ data: Billing | null; error: unknown }> {
     try {
-      const updateData: any = {
+      const updateData: {
+        payment_status: string
+        updated_at: string
+        payment_date?: string
+        amount_paid?: number
+      } = {
         payment_status: status,
         updated_at: new Date().toISOString()
       }

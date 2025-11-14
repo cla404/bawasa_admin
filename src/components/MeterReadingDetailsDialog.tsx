@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import {
   Dialog,
   DialogContent,
@@ -9,7 +10,8 @@ import {
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Loader2, CheckCircle, XCircle, Clock, AlertCircle, Image as ImageIcon, ZoomIn } from "lucide-react"
 import { LatestMeterReadingByUser } from "@/lib/meter-readings-service"
 
 interface MeterReadingDetailsDialogProps {
@@ -23,6 +25,17 @@ export function MeterReadingDetailsDialog({
   onOpenChange,
   reading,
 }: MeterReadingDetailsDialogProps) {
+  const [imageError, setImageError] = useState(false)
+  const [showImageModal, setShowImageModal] = useState(false)
+
+  // Reset image error when reading changes
+  useEffect(() => {
+    if (reading) {
+      setImageError(false)
+      setShowImageModal(false)
+    }
+  }, [reading])
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "paid":
@@ -53,8 +66,9 @@ export function MeterReadingDetailsDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Meter Reading Details</DialogTitle>
           <DialogDescription>
@@ -136,6 +150,48 @@ export function MeterReadingDetailsDialog({
               {reading.total_readings} reading{reading.total_readings !== 1 ? 's' : ''}
             </Badge>
           </div>
+
+          {/* Meter Image */}
+          {reading.meter_image && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ImageIcon className="h-5 w-5" />
+                  Meter Image
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="relative group">
+                  {!imageError ? (
+                    <>
+                      <img
+                        src={reading.meter_image}
+                        alt="Meter reading image"
+                        className="w-full h-auto max-h-96 object-contain rounded-lg border cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => setShowImageModal(true)}
+                        onError={() => setImageError(true)}
+                        onLoad={() => setImageError(false)}
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/10 transition-colors rounded-lg pointer-events-none">
+                        <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+                      <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                        Click to enlarge
+                      </div>
+                    </>
+                  ) : (
+                    <div className="w-full h-64 bg-gray-100 rounded-lg border flex flex-col items-center justify-center text-gray-500">
+                      <AlertCircle className="h-8 w-8 mb-2" />
+                      <p>Image failed to load</p>
+                      <p className="text-xs mt-1 text-gray-400 break-all px-4 text-center">
+                        {reading.meter_image}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
         
         <div className="flex justify-end pt-4 border-t">
@@ -145,6 +201,31 @@ export function MeterReadingDetailsDialog({
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Image Modal */}
+    {reading?.meter_image && (
+      <Dialog open={showImageModal} onOpenChange={setShowImageModal}>
+        <DialogContent className="max-w-5xl max-h-[95vh]">
+          <DialogHeader>
+            <DialogTitle>Meter Reading Image</DialogTitle>
+          </DialogHeader>
+          <div className="relative flex items-center justify-center">
+            <img
+              src={reading.meter_image}
+              alt="Meter reading image - full size"
+              className="max-w-full max-h-[80vh] object-contain rounded-lg"
+              onError={() => setImageError(true)}
+            />
+          </div>
+          <div className="flex justify-end pt-4 border-t">
+            <Button variant="outline" onClick={() => setShowImageModal(false)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    )}
+    </>
   )
 }
 

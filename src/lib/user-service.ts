@@ -18,11 +18,19 @@ export interface UserWithStatus extends User {
   status: 'verified' | 'pending' | 'suspended'
 }
 
+interface AuthUser {
+  id: string
+  email?: string
+  user_metadata?: {
+    full_name?: string
+  }
+}
+
 export class UserService {
   /**
    * Fetch all users from the users table
    */
-  static async getAllUsers(): Promise<{ data: User[] | null; error: any }> {
+  static async getAllUsers(): Promise<{ data: User[] | null; error: unknown }> {
     try {
       console.log('🔍 Fetching users from Supabase...')
       
@@ -79,7 +87,7 @@ export class UserService {
   /**
    * Fetch a single user by ID
    */
-  static async getUserById(id: string): Promise<{ data: User | null; error: any }> {
+  static async getUserById(id: string): Promise<{ data: User | null; error: unknown }> {
     try {
       const { data, error } = await supabase
         .from('users')
@@ -95,9 +103,27 @@ export class UserService {
   }
 
   /**
+   * Fetch a single user by auth_user_id
+   */
+  static async getUserByAuthUserId(authUserId: string): Promise<{ data: User | null; error: unknown }> {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('auth_user_id', authUserId)
+        .single()
+
+      return { data, error }
+    } catch (error) {
+      console.error('Error fetching user by auth_user_id:', error)
+      return { data: null, error }
+    }
+  }
+
+  /**
    * Update user status (active/inactive)
    */
-  static async updateUserStatus(id: string, isActive: boolean): Promise<{ data: User | null; error: any }> {
+  static async updateUserStatus(id: string, isActive: boolean): Promise<{ data: User | null; error: unknown }> {
     try {
       const { data, error } = await supabase
         .from('users')
@@ -116,7 +142,7 @@ export class UserService {
   /**
    * Update user account type
    */
-  static async updateUserAccountType(id: string, accountType: 'consumer' | 'admin' | 'staff'): Promise<{ data: User | null; error: any }> {
+  static async updateUserAccountType(id: string, accountType: 'consumer' | 'admin' | 'staff'): Promise<{ data: User | null; error: unknown }> {
     try {
       const { data, error } = await supabase
         .from('users')
@@ -135,7 +161,7 @@ export class UserService {
   /**
    * Delete a user (soft delete by setting is_active to false)
    */
-  static async deleteUser(id: string): Promise<{ data: User | null; error: any }> {
+  static async deleteUser(id: string): Promise<{ data: User | null; error: unknown }> {
     try {
       const { data, error } = await supabase
         .from('users')
@@ -154,7 +180,7 @@ export class UserService {
   /**
    * Search users by name, email, or phone
    */
-  static async searchUsers(query: string): Promise<{ data: User[] | null; error: any }> {
+  static async searchUsers(query: string): Promise<{ data: User[] | null; error: unknown }> {
     try {
       const { data, error } = await supabase
         .from('users')
@@ -172,7 +198,7 @@ export class UserService {
   /**
    * Get users by account type
    */
-  static async getUsersByAccountType(accountType: 'consumer' | 'admin' | 'staff'): Promise<{ data: User[] | null; error: any }> {
+  static async getUsersByAccountType(accountType: 'consumer' | 'admin' | 'staff'): Promise<{ data: User[] | null; error: unknown }> {
     try {
       const { data, error } = await supabase
         .from('users')
@@ -207,7 +233,7 @@ export class UserService {
   /**
    * Check if admin user exists in public users table and create if not
    */
-  static async ensureAdminUserExists(authUser: any): Promise<{ data: User | null; error: any }> {
+  static async ensureAdminUserExists(authUser: AuthUser): Promise<{ data: User | null; error: unknown }> {
     try {
       console.log('🔍 Checking if admin user exists in public users table...', authUser.id)
       

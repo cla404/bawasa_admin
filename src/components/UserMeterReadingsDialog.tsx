@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Loader2, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react"
+import { Loader2, CheckCircle, XCircle, Clock, AlertCircle, Image as ImageIcon } from "lucide-react"
 import { MeterReadingsService, MeterReadingWithUser } from "@/lib/meter-readings-service"
 
 interface UserMeterReadingsDialogProps {
@@ -39,14 +39,10 @@ export function UserMeterReadingsDialog({
   const [readings, setReadings] = useState<MeterReadingWithUser[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null)
+  const [imageError, setImageError] = useState(false)
 
-  useEffect(() => {
-    if (open && userId) {
-      loadUserReadings()
-    }
-  }, [open, userId])
-
-  const loadUserReadings = async () => {
+  const loadUserReadings = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
@@ -57,7 +53,19 @@ export function UserMeterReadingsDialog({
     } finally {
       setLoading(false)
     }
-  }
+  }, [userId])
+
+  useEffect(() => {
+    if (open && userId) {
+      loadUserReadings()
+    }
+  }, [open, userId, loadUserReadings])
+
+  useEffect(() => {
+    if (selectedImageUrl) {
+      setImageError(false)
+    }
+  }, [selectedImageUrl])
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -85,6 +93,7 @@ export function UserMeterReadingsDialog({
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
         <DialogHeader>
@@ -124,6 +133,7 @@ export function UserMeterReadingsDialog({
                   <TableHead>Present Reading</TableHead>
                   <TableHead>Consumption</TableHead>
                   <TableHead>Payment Status</TableHead>
+                  <TableHead>Image</TableHead>
                   <TableHead>Submitted</TableHead>
                 </TableRow>
               </TableHeader>
@@ -140,6 +150,19 @@ export function UserMeterReadingsDialog({
                       {reading.consumption_cubic_meters?.toLocaleString() || '0'} cu.m
                     </TableCell>
                     <TableCell>{getStatusBadge(reading.payment_status)}</TableCell>
+                    <TableCell>
+                      {reading.meter_image ? (
+                        <button
+                          onClick={() => setSelectedImageUrl(reading.meter_image || null)}
+                          className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1 text-sm"
+                        >
+                          <ImageIcon className="h-4 w-4" />
+                          View Image
+                        </button>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">No image</span>
+                      )}
+                    </TableCell>
                     <TableCell>{formatDate(reading.created_at)}</TableCell>
                   </TableRow>
                 ))}
@@ -160,5 +183,47 @@ export function UserMeterReadingsDialog({
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Image Modal */}
+    {selectedImageUrl && (
+      <Dialog open={!!selectedImageUrl} onOpenChange={(open) => !open && setSelectedImageUrl(null)}>
+        <DialogContent className="max-w-5xl max-h-[95vh]">
+          <DialogHeader>
+            <DialogTitle>Meter Reading Image</DialogTitle>
+            <DialogDescription>
+              {(() => {
+                const reading = readings.find(r => r.meter_image === selectedImageUrl)
+                return reading ? `Image for reading submitted on ${formatDate(reading.created_at)}` : 'Meter reading image'
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="relative flex items-center justify-center">
+            {!imageError ? (
+              <img
+                src={selectedImageUrl}
+                alt="Meter reading image"
+                className="max-w-full max-h-[80vh] object-contain rounded-lg"
+                onError={() => setImageError(true)}
+                onLoad={() => setImageError(false)}
+              />
+            ) : (
+              <div className="w-full h-64 bg-gray-100 rounded-lg border flex flex-col items-center justify-center text-gray-500">
+                <AlertCircle className="h-8 w-8 mb-2" />
+                <p>Image failed to load</p>
+                <p className="text-xs mt-1 text-gray-400 break-all px-4 text-center">
+                  {selectedImageUrl}
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end pt-4 border-t">
+            <Button variant="outline" onClick={() => setSelectedImageUrl(null)}>
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    )}
+    </>
   )
 }
