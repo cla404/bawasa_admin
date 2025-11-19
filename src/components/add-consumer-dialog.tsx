@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { UserPlus, Loader2, Home, RefreshCw, Eye, EyeOff } from "lucide-react"
+import { UserPlus, Loader2, Home, RefreshCw, Eye, EyeOff, Calendar } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
 
@@ -35,6 +35,7 @@ interface ConsumerFormData {
   phone: string
   address: string
   registered_voter: string
+  created_at: string
 }
 
 export function AddConsumerDialog({ onConsumerAdded }: AddConsumerDialogProps) {
@@ -48,7 +49,8 @@ export function AddConsumerDialog({ onConsumerAdded }: AddConsumerDialogProps) {
     full_name: "",
     phone: "",
     address: "",
-    registered_voter: "no"
+    registered_voter: "no",
+    created_at: ""
   })
 
   const [passwordValidationError, setPasswordValidationError] = useState<string | null>(null)
@@ -161,7 +163,7 @@ export function AddConsumerDialog({ onConsumerAdded }: AddConsumerDialogProps) {
     e.preventDefault()
     
     // Validation
-    if (!formData.email || !formData.password || !formData.full_name) {
+    if (!formData.email || !formData.password || !formData.full_name || !formData.created_at) {
       setError("Please fill in all required fields")
       return
     }
@@ -206,7 +208,8 @@ export function AddConsumerDialog({ onConsumerAdded }: AddConsumerDialogProps) {
         full_name: "",
         phone: "",
         address: "",
-        registered_voter: "no"
+        registered_voter: "no",
+        created_at: ""
       })
       
       setOpen(false)
@@ -386,6 +389,20 @@ export function AddConsumerDialog({ onConsumerAdded }: AddConsumerDialogProps) {
                     <SelectItem value="no">No</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="created_at" className="flex items-center space-x-2">
+                  <Calendar className="h-4 w-4" />
+                  <span>Account Created Date *</span>
+                </Label>
+                <Input
+                  id="created_at"
+                  type="date"
+                  value={formData.created_at}
+                  onChange={(e) => handleInputChange("created_at", e.target.value)}
+                  required
+                />
               </div>
             </CardContent>
           </Card>

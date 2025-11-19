@@ -17,13 +17,14 @@ export async function POST(request: NextRequest) {
       full_name,
       phone,
       address,
-      registered_voter
+      registered_voter,
+      created_at
     } = body
 
     // Validate required fields
-    if (!full_name || !email || !password) {
+    if (!full_name || !email || !password || !created_at) {
       return NextResponse.json(
-        { error: 'Missing required fields: full_name, email, password' },
+        { error: 'Missing required fields: full_name, email, password, created_at' },
         { status: 400 }
       )
     }
@@ -36,13 +37,28 @@ export async function POST(request: NextRequest) {
     console.log('✅ Password hashed successfully')
 
     // Step 2: Create account record in accounts table first
-    const accountData = {
+    const accountData: {
+      email: string
+      password: string
+      full_name: string
+      full_address: string | null
+      mobile_no: string | null
+      user_type: string
+      created_at?: string
+    } = {
       email,
       password: hashedPassword,
       full_name,
       full_address: address || null,
       mobile_no: phone || null,
       user_type: 'consumer'
+    }
+
+    // If created_at is provided, use it; otherwise let the database set it automatically
+    if (created_at) {
+      // Convert the date string to ISO format for PostgreSQL
+      const createdDate = new Date(created_at)
+      accountData.created_at = createdDate.toISOString()
     }
 
     const { data: accountData_result, error: accountError } = await supabase
