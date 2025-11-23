@@ -8,6 +8,7 @@ import { SubmitButton } from '@/components/auth/SubmitButton';
 import { ErrorMessage } from '@/components/auth/ErrorMessage';
 import { auth } from '@/lib/supabase';
 import { UserService } from '@/lib/user-service';
+import { CashierAuthService } from '@/lib/cashier-auth-service';
 
 export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
@@ -24,30 +25,46 @@ export default function Home() {
     setError(null);
 
     try {
-      const { data, error } = await auth.signIn(formData.email, formData.password);
+      // First, try admin authentication (Supabase Auth)
+      console.log('🔐 Attempting admin authentication...');
+      const { data: adminData, error: adminError } = await auth.signIn(formData.email, formData.password);
       
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      if (data.user) {
+      if (!adminError && adminData?.user) {
+        // Admin authentication successful
+        console.log('✅ Admin authentication successful');
+        
         // Ensure admin user exists in public users table
         console.log('🔍 Ensuring admin user exists in public users table...');
-        const { data: userProfile, error: profileError } = await UserService.ensureAdminUserExists(data.user);
+        const { data: userProfile, error: profileError } = await UserService.ensureAdminUserExists(adminData.user);
         
         if (profileError) {
           console.error('❌ Error ensuring admin user exists:', profileError);
           // Don't block the sign-in flow, just log the error
-          // The user can still proceed to admin dashboard
         } else {
           console.log('✅ Admin user profile ensured:', userProfile);
         }
         
-        // Successful sign in - redirect to admin dashboard
+        // Redirect to admin dashboard
         router.push('/admin');
-      } else {
-        throw new Error('Sign in failed');
+        return;
       }
+
+      // If admin auth failed, try cashier authentication
+      console.log('🔐 Admin auth failed, attempting cashier authentication...');
+      const cashierResponse = await CashierAuthService.login({
+        email: formData.email,
+        password: formData.password,
+      });
+
+      if (cashierResponse.success && cashierResponse.cashier) {
+        // Cashier authentication successful
+        console.log('✅ Cashier authentication successful');
+        router.push('/cashier/dashboard');
+        return;
+      }
+
+      // Both authentication methods failed
+      throw new Error('Invalid email or password');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid email or password');
     } finally {

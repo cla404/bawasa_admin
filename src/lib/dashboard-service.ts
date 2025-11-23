@@ -102,9 +102,13 @@ export class DashboardService {
     }
   }
 
-  static async getRevenueStats(): Promise<{ data?: RevenueStats; error?: Error }> {
+  static async getRevenueStats(year?: number): Promise<{ data?: RevenueStats; error?: Error }> {
     try {
-      const response = await fetch(`${this.baseUrl}/revenue`)
+      const url = year 
+        ? `${this.baseUrl}/revenue?year=${year}`
+        : `${this.baseUrl}/revenue`
+      
+      const response = await fetch(url)
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)

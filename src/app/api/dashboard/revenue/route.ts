@@ -7,18 +7,18 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 // Create client with anon key
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    console.log('💰 Fetching revenue data from new table structure...')
-
-    // Get current date and calculate date ranges
-    const now = new Date()
-    const currentYear = now.getFullYear()
-    const currentMonth = now.getMonth()
+    // Get year from query parameter, default to current year
+    const { searchParams } = new URL(request.url)
+    const yearParam = searchParams.get('year')
+    const selectedYear = yearParam ? parseInt(yearParam, 10) : new Date().getFullYear()
     
-    // Get start date for last 12 months
-    const startDate = new Date(currentYear, currentMonth - 11, 1)
-    const endDate = new Date(currentYear, currentMonth + 1, 0)
+    console.log(`💰 Fetching revenue data for year ${selectedYear}...`)
+
+    // Calculate date ranges for the selected year
+    const startDate = new Date(selectedYear, 0, 1) // January 1st of selected year
+    const endDate = new Date(selectedYear, 11, 31) // December 31st of selected year
     
     // Fetch all relevant bills in a single query - bills created in last 12 months
     const { data: allBills, error: billsError } = await supabase
@@ -39,9 +39,9 @@ export async function GET() {
     // Group by month and calculate revenue
     const monthlyMap = new Map<string, { revenue: number; billsCount: number }>()
     
-    // Initialize all 12 months with zero values
-    for (let i = 11; i >= 0; i--) {
-      const date = new Date(currentYear, currentMonth - i, 1)
+    // Initialize all 12 months of the selected year with zero values
+    for (let month = 0; month < 12; month++) {
+      const date = new Date(selectedYear, month, 1)
       const monthName = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
       monthlyMap.set(monthName, { revenue: 0, billsCount: 0 })
     }
@@ -77,7 +77,7 @@ export async function GET() {
       billsCount: data.billsCount
     }))
     
-    // Get total revenue statistics from bawasa_billings
+    // Get total revenue statistics from bawasa_billings for the selected year
     const [
       totalRevenueResult,
       paidBillsResult,
@@ -85,35 +85,45 @@ export async function GET() {
       partialBillsResult,
       overdueBillsResult
     ] = await Promise.all([
-      // Total revenue from all paid amounts
+      // Total revenue from all paid amounts in the selected year
       supabase
         .from('bawasa_billings')
         .select('amount_paid')
-        .in('payment_status', ['paid', 'partial']),
+        .in('payment_status', ['paid', 'partial'])
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString()),
       
-      // Count of fully paid bills
+      // Count of fully paid bills in the selected year
       supabase
         .from('bawasa_billings')
         .select('id', { count: 'exact', head: true })
-        .eq('payment_status', 'paid'),
+        .eq('payment_status', 'paid')
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString()),
       
-      // Count of unpaid bills
+      // Count of unpaid bills in the selected year
       supabase
         .from('bawasa_billings')
         .select('id', { count: 'exact', head: true })
-        .eq('payment_status', 'unpaid'),
+        .eq('payment_status', 'unpaid')
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString()),
       
-      // Count of partial payments
+      // Count of partial payments in the selected year
       supabase
         .from('bawasa_billings')
         .select('id', { count: 'exact', head: true })
-        .eq('payment_status', 'partial'),
+        .eq('payment_status', 'partial')
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString()),
       
-      // Count of overdue bills
+      // Count of overdue bills in the selected year
       supabase
         .from('bawasa_billings')
         .select('id', { count: 'exact', head: true })
         .eq('payment_status', 'overdue')
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString())
     ])
     
     // Check for errors

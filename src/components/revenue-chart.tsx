@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { 
   LineChart, 
@@ -12,26 +13,101 @@ import {
   BarChart,
   Bar
 } from "recharts"
-import { RevenueStats } from "@/lib/dashboard-service"
-import { TrendingUp, DollarSign, FileText, AlertTriangle } from "lucide-react"
+import { RevenueStats, DashboardService } from "@/lib/dashboard-service"
+import { TrendingUp, FileText, AlertTriangle } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface RevenueChartProps {
   revenueStats: RevenueStats | null
   loading: boolean
 }
 
-export function RevenueChart({ revenueStats, loading }: RevenueChartProps) {
+export function RevenueChart({ revenueStats: initialRevenueStats, loading: initialLoading }: RevenueChartProps) {
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear())
+  const [revenueStats, setRevenueStats] = useState<RevenueStats | null>(initialRevenueStats)
+  const [loading, setLoading] = useState<boolean>(initialLoading)
+
+  // Generate available years (from 2022 to current year)
+  const currentYear = new Date().getFullYear()
+  const availableYears = Array.from({ length: currentYear - 2021 }, (_, i) => currentYear - i)
+
+  // Year selector component
+  const YearSelector = () => (
+    <div className="flex items-center gap-2">
+      <label htmlFor="year-select" className="text-sm font-medium text-muted-foreground">
+        Year:
+      </label>
+      <Select
+        value={selectedYear.toString()}
+        onValueChange={(value) => setSelectedYear(parseInt(value, 10))}
+      >
+        <SelectTrigger id="year-select" className="w-[120px]">
+          <SelectValue placeholder="Select year" />
+        </SelectTrigger>
+        <SelectContent>
+          {availableYears.map((year) => (
+            <SelectItem key={year} value={year.toString()}>
+              {year}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  )
+
+  // Fetch revenue data when year changes
+  useEffect(() => {
+    const fetchRevenueData = async () => {
+      setLoading(true)
+      try {
+        const result = await DashboardService.getRevenueStats(selectedYear)
+        if (result.data) {
+          setRevenueStats(result.data)
+        } else if (result.error) {
+          console.error('Error fetching revenue stats:', result.error)
+          setRevenueStats(null)
+        }
+      } catch (error) {
+        console.error('Error fetching revenue stats:', error)
+        setRevenueStats(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchRevenueData()
+  }, [selectedYear])
+
+  // Update when initial props change
+  useEffect(() => {
+    if (initialRevenueStats) {
+      setRevenueStats(initialRevenueStats)
+    }
+    setLoading(initialLoading)
+  }, [initialRevenueStats, initialLoading])
+
   if (loading) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center">
-            <TrendingUp className="h-5 w-5 mr-2" />
-            Revenue Report
-          </CardTitle>
-          <CardDescription>
-            Monthly revenue trends and payment statistics
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center">
+                <TrendingUp className="h-5 w-5 mr-2" />
+                Revenue Report
+              </CardTitle>
+              <CardDescription>
+                Monthly revenue trends and payment statistics
+              </CardDescription>
+            </div>
+            <YearSelector />
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-64">
@@ -49,19 +125,24 @@ export function RevenueChart({ revenueStats, loading }: RevenueChartProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center">
-            <TrendingUp className="h-5 w-5 mr-2" />
-            Revenue Report
-          </CardTitle>
-          <CardDescription>
-            Monthly revenue trends and payment statistics
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center">
+                <TrendingUp className="h-5 w-5 mr-2" />
+                Revenue Report
+              </CardTitle>
+              <CardDescription>
+                Monthly revenue trends and payment statistics
+              </CardDescription>
+            </div>
+            <YearSelector />
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
               <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">No revenue data available</p>
+              <p className="text-muted-foreground">No revenue data available for {selectedYear}</p>
             </div>
           </div>
         </CardContent>
@@ -90,13 +171,18 @@ export function RevenueChart({ revenueStats, loading }: RevenueChartProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center">
-          <TrendingUp className="h-5 w-5 mr-2" />
-          Revenue Report
-        </CardTitle>
-        <CardDescription>
-          Monthly revenue trends and payment statistics
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center">
+              <TrendingUp className="h-5 w-5 mr-2" />
+              Revenue Report
+            </CardTitle>
+            <CardDescription>
+              Monthly revenue trends and payment statistics for {selectedYear}
+            </CardDescription>
+          </div>
+          <YearSelector />
+        </div>
       </CardHeader>
       <CardContent>
         {/* Revenue Summary Cards */}
