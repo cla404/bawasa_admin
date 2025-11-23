@@ -26,7 +26,6 @@ export default function SignInPage() {
 
     try {
       // First, try admin authentication (Supabase Auth)
-      console.log('🔐 Attempting admin authentication...');
       const { data: adminData, error: adminError } = await auth.signIn(formData.email, formData.password);
       
       if (!adminError && adminData?.user) {
@@ -34,14 +33,11 @@ export default function SignInPage() {
         console.log('✅ Admin authentication successful');
         
         // Ensure admin user exists in public users table
-        console.log('🔍 Ensuring admin user exists in public users table...');
-        const { data: userProfile, error: profileError } = await UserService.ensureAdminUserExists(adminData.user);
+        const { error: profileError } = await UserService.ensureAdminUserExists(adminData.user);
         
         if (profileError) {
           console.error('❌ Error ensuring admin user exists:', profileError);
           // Don't block the sign-in flow, just log the error
-        } else {
-          console.log('✅ Admin user profile ensured:', userProfile);
         }
         
         // Redirect to admin dashboard
@@ -50,22 +46,30 @@ export default function SignInPage() {
       }
 
       // If admin auth failed, try cashier authentication
-      console.log('🔐 Admin auth failed, attempting cashier authentication...');
-      const cashierResponse = await CashierAuthService.login({
-        email: formData.email,
-        password: formData.password,
-      });
+      // Only try if admin error suggests invalid credentials (not network/server errors)
+      const shouldTryCashier = !adminError || 
+        adminError.message?.includes('Invalid login credentials') ||
+        adminError.message?.includes('Email not confirmed') ||
+        adminError.message?.includes('Invalid email or password');
 
-      if (cashierResponse.success && cashierResponse.cashier) {
-        // Cashier authentication successful
-        console.log('✅ Cashier authentication successful');
-        router.push('/cashier/dashboard');
-        return;
+      if (shouldTryCashier) {
+        const cashierResponse = await CashierAuthService.login({
+          email: formData.email,
+          password: formData.password,
+        });
+
+        if (cashierResponse.success && cashierResponse.cashier) {
+          // Cashier authentication successful
+          console.log('✅ Cashier authentication successful');
+          router.push('/cashier/dashboard');
+          return;
+        }
       }
 
       // Both authentication methods failed
-      throw new Error('Invalid email or password');
+      setError('Invalid email or password');
     } catch (err) {
+      console.error('Authentication error:', err);
       setError(err instanceof Error ? err.message : 'Invalid email or password');
     } finally {
       setIsLoading(false);

@@ -16,6 +16,8 @@ import {
 } from "lucide-react"
 import { CashierLayout } from "@/components/cashier-sidebar"
 import { supabase } from "@/lib/supabase"
+import { RevenueChart } from "@/components/revenue-chart"
+import { DashboardService, RevenueStats } from "@/lib/dashboard-service"
 
 interface DashboardStats {
   allTransactions: number
@@ -54,12 +56,27 @@ export default function CashierDashboard() {
     completedBills: 0
   })
   const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([])
+  const [revenueStats, setRevenueStats] = useState<RevenueStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchDashboardData()
+    fetchRevenueData()
   }, [])
+
+  const fetchRevenueData = async () => {
+    try {
+      const result = await DashboardService.getRevenueStats()
+      if (result.data) {
+        setRevenueStats(result.data)
+      } else if (result.error) {
+        console.error('Error fetching revenue stats:', result.error)
+      }
+    } catch (error) {
+      console.error('Error fetching revenue stats:', error)
+    }
+  }
 
   const fetchDashboardData = async () => {
     try {
@@ -256,6 +273,9 @@ export default function CashierDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Revenue Report */}
+        <RevenueChart revenueStats={revenueStats} loading={loading} />
 
         {/* Recent Transactions */}
         <Card>

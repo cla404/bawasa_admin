@@ -7,8 +7,7 @@ import {
   Receipt, 
   History, 
   User, 
-  LogOut,
-  MapPin
+  LogOut
 } from "lucide-react"
 import {
   Sidebar,
@@ -127,6 +126,7 @@ export function CashierSidebar({ cashier, onLogout }: CashierSidebarProps) {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={() => router.push("/cashier/profile")}
+                  isActive={pathname === "/cashier/profile"}
                   tooltip="Profile"
                 >
                   <User className="h-4 w-4" />
@@ -171,12 +171,12 @@ export function CashierLayout({ children }: CashierLayoutProps) {
         // Update last login
         await CashierAuthService.updateLastLogin(response.cashier.id)
       } else {
-        // Redirect to login if not authenticated
-        router.push('/cashier/login')
+        // Redirect to unified sign-in page if not authenticated
+        router.push('/signin')
       }
     } catch (error) {
       console.error('Auth check error:', error)
-      router.push('/cashier/login')
+      router.push('/signin')
     } finally {
       setLoading(false)
     }
@@ -184,7 +184,7 @@ export function CashierLayout({ children }: CashierLayoutProps) {
 
   const handleLogout = () => {
     setCashier(null)
-    router.push('/cashier/login')
+    router.push('/signin')
   }
 
   React.useEffect(() => {

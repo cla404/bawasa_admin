@@ -27,12 +27,12 @@ export class CashierAuthService {
         .single()
 
       if (accountError) {
-        console.error('❌ [CashierAuth] Account lookup failed:', accountError.message)
+        console.log('ℹ️ [CashierAuth] Account lookup failed:', accountError.message)
         return { success: false, error: 'Invalid email or password' }
       }
 
       if (!accountData) {
-        console.error('❌ [CashierAuth] No account found')
+        console.log('ℹ️ [CashierAuth] No account found')
         return { success: false, error: 'Invalid email or password' }
       }
 
@@ -43,7 +43,7 @@ export class CashierAuthService {
       const isPasswordValid = await bcrypt.compare(loginData.password, accountData.password)
 
       if (!isPasswordValid) {
-        console.error('❌ [CashierAuth] Invalid password')
+        console.log('ℹ️ [CashierAuth] Invalid password')
         return { success: false, error: 'Invalid email or password' }
       }
 
