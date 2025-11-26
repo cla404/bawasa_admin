@@ -22,7 +22,8 @@ import {
   RefreshCw,
   Loader2,
   Printer,
-  Eye
+  Eye,
+  Download
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -36,6 +37,7 @@ import { supabase } from "@/lib/supabase"
 import { ViewBillingDetailsDialog } from "@/components/view-billing-details-dialog"
 import { BillingWithDetails } from "@/lib/billing-service"
 import { PrintableBill } from "@/components/printable-bill"
+import { convertToCSV, downloadCSV } from "@/lib/export-utils"
 
 export default function CashierTransactionsPage() {
   const [transactions, setTransactions] = useState<BillingWithDetails[]>([])
@@ -220,6 +222,53 @@ export default function CashierTransactionsPage() {
     }, 100)
   }
 
+  const handleExportTransactions = () => {
+    if (filteredTransactions.length === 0) return
+
+    const exportData = filteredTransactions.map(transaction => ({
+      'Transaction ID': transaction.id,
+      'Customer Name': transaction.consumer?.accounts?.full_name || 'Unknown',
+      'Email': transaction.consumer?.accounts?.email || 'N/A',
+      'Water Meter No': transaction.consumer?.water_meter_no || 'N/A',
+      'Billing Month': transaction.billing_month,
+      'Amount Due': transaction.total_amount_due.toFixed(2),
+      'Amount Paid': transaction.amount_paid.toFixed(2),
+      'Payment Status': transaction.payment_status,
+      'Payment Date': formatDateTime(transaction.payment_date),
+      'Consumption (≤10 cu.m)': transaction.consumption_10_or_below?.toFixed(2) || '0.00',
+      'Amount (≤10 cu.m)': transaction.amount_10_or_below?.toFixed(2) || '0.00',
+      'Consumption (>10 cu.m)': transaction.consumption_over_10?.toFixed(2) || '0.00',
+      'Amount (>10 cu.m)': transaction.amount_over_10?.toFixed(2) || '0.00',
+      'Arrears': transaction.arrears_to_be_paid?.toFixed(2) || '0.00',
+      'Arrears After Due Date': transaction.arrears_after_due_date?.toFixed(2) || '0.00',
+      'Created At': formatDateTime(transaction.created_at)
+    }))
+
+    const headers = [
+      'Transaction ID',
+      'Customer Name',
+      'Email',
+      'Water Meter No',
+      'Billing Month',
+      'Amount Due',
+      'Amount Paid',
+      'Payment Status',
+      'Payment Date',
+      'Consumption (≤10 cu.m)',
+      'Amount (≤10 cu.m)',
+      'Consumption (>10 cu.m)',
+      'Amount (>10 cu.m)',
+      'Arrears',
+      'Arrears After Due Date',
+      'Created At'
+    ]
+
+    const csvContent = convertToCSV(exportData, headers)
+    const filename = `cashier_transactions_${new Date().toISOString().split('T')[0]}.csv`
+    
+    downloadCSV(csvContent, filename)
+  }
+
   // Handle print cleanup
   useEffect(() => {
     const handleAfterPrint = () => {
@@ -243,11 +292,18 @@ export default function CashierTransactionsPage() {
             <p className="text-gray-600">View and manage payment transactions</p>
           </div>
           <div className="flex items-center space-x-2">
+            <Button 
+              onClick={handleExportTransactions} 
+              disabled={loading || filteredTransactions.length === 0} 
+              variant="outline"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
             <Button onClick={fetchTransactions} disabled={loading} variant="outline">
               <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
-           
           </div>
         </div>
 

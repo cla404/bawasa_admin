@@ -18,6 +18,7 @@ import { CashierLayout } from "@/components/cashier-sidebar"
 import { supabase } from "@/lib/supabase"
 import { RevenueChart } from "@/components/revenue-chart"
 import { DashboardService, RevenueStats } from "@/lib/dashboard-service"
+import { CashierAuthService } from "@/lib/cashier-auth-service"
 
 interface DashboardStats {
   allTransactions: number
@@ -59,11 +60,24 @@ export default function CashierDashboard() {
   const [revenueStats, setRevenueStats] = useState<RevenueStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isSuspended, setIsSuspended] = useState(false)
 
   useEffect(() => {
     fetchDashboardData()
     fetchRevenueData()
+    checkSuspendedStatus()
   }, [])
+
+  const checkSuspendedStatus = async () => {
+    try {
+      const response = await CashierAuthService.getCurrentCashier()
+      if (response.success && response.cashier) {
+        setIsSuspended(response.cashier.status === 'suspended')
+      }
+    } catch (err) {
+      console.error('Error checking suspended status:', err)
+    }
+  }
 
   const fetchRevenueData = async () => {
     try {
@@ -206,6 +220,20 @@ export default function CashierDashboard() {
             Refresh
           </Button>
         </div>
+
+        {/* Suspended Status Banner */}
+        {isSuspended && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center space-x-2 text-red-800">
+                <AlertCircle className="h-4 w-4" />
+                <span className="font-semibold">
+                  Your account has been suspended. Your access to payment processing is limited. Please contact the administrator.
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Error Message */}
         {error && (

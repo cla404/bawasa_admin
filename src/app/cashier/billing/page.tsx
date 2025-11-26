@@ -51,11 +51,24 @@ export default function CashierBillingPage() {
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
   const [billingToPrint, setBillingToPrint] = useState<BillingWithDetails | null>(null)
   const [cashierId, setCashierId] = useState<string | null>(null)
+  const [isSuspended, setIsSuspended] = useState(false)
 
   useEffect(() => {
     fetchBillings()
     fetchCashierId()
+    checkSuspendedStatus()
   }, [])
+
+  const checkSuspendedStatus = async () => {
+    try {
+      const response = await CashierAuthService.getCurrentCashier()
+      if (response.success && response.cashier) {
+        setIsSuspended(response.cashier.status === 'suspended')
+      }
+    } catch (err) {
+      console.error('Error checking suspended status:', err)
+    }
+  }
 
   const fetchCashierId = async () => {
     try {
@@ -120,6 +133,12 @@ export default function CashierBillingPage() {
   }
 
   const handleStatusUpdate = async (billingId: string, newStatus: 'unpaid' | 'partial' | 'paid' | 'overdue') => {
+    // Check if cashier is suspended
+    if (isSuspended) {
+      setError('Your account has been suspended. You cannot update billing status. Please contact the administrator.')
+      return
+    }
+
     try {
       // If marking as paid, get the billing data first to get the total amount
       let totalAmount = 0
@@ -240,6 +259,20 @@ export default function CashierBillingPage() {
           </Button>
         </div>
 
+        {/* Suspended Status Banner */}
+        {isSuspended && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center space-x-2 text-red-800">
+                <AlertCircle className="h-4 w-4" />
+                <span className="font-semibold">
+                  Your account has been suspended. You cannot process payments or update billing status. Please contact the administrator.
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Error Message */}
         {error && (
           <Card className="border-red-200 bg-red-50">
@@ -349,6 +382,7 @@ export default function CashierBillingPage() {
                                 <DropdownMenuItem
                                   onClick={() => handleStatusUpdate(billing.id, 'paid')}
                                   className="text-green-600"
+                                  disabled={isSuspended}
                                 >
                                   <CheckCircle className="h-4 w-4 mr-2" />
                                   Mark as Paid
@@ -357,6 +391,7 @@ export default function CashierBillingPage() {
                                 <DropdownMenuItem
                                   onClick={() => handleStatusUpdate(billing.id, 'unpaid')}
                                   className="text-orange-600"
+                                  disabled={isSuspended}
                                 >
                                   <Clock className="h-4 w-4 mr-2" />
                                   Mark as Unpaid

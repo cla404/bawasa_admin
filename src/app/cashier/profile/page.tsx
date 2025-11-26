@@ -72,6 +72,11 @@ export default function CashierProfilePage() {
   }, [])
 
   const handleEdit = () => {
+    // Check if cashier is suspended
+    if (cashier?.status === 'suspended') {
+      setError('Your account has been suspended. You cannot edit your profile. Please contact the administrator.')
+      return
+    }
     setIsEditing(true)
   }
 
@@ -88,6 +93,12 @@ export default function CashierProfilePage() {
 
   const handleSave = async () => {
     if (!cashier) return
+
+    // Check if cashier is suspended
+    if (cashier.status === 'suspended') {
+      setError('Your account has been suspended. You cannot edit your profile. Please contact the administrator.')
+      return
+    }
 
     try {
       setSaving(true)
@@ -169,6 +180,20 @@ export default function CashierProfilePage() {
           </p>
         </div>
 
+        {/* Suspended Status Banner */}
+        {cashier?.status === 'suspended' && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="pt-6">
+              <div className="flex items-center space-x-2 text-red-800">
+                <AlertCircle className="h-4 w-4" />
+                <span className="font-semibold">
+                  Your account has been suspended. You cannot edit your profile. Please contact the administrator.
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Error Message */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -190,7 +215,11 @@ export default function CashierProfilePage() {
                 </CardDescription>
               </div>
               {!isEditing ? (
-                <Button variant="outline" onClick={handleEdit}>
+                <Button 
+                  variant="outline" 
+                  onClick={handleEdit}
+                  disabled={cashier?.status === 'suspended'}
+                >
                   <Edit2 className="h-4 w-4 mr-2" />
                   Edit Profile
                 </Button>

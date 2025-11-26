@@ -16,16 +16,14 @@ import {
 import { 
   Users, 
   Search, 
-  Filter, 
   MoreHorizontal,
-  CheckCircle,
   XCircle,
-  Clock,
   Loader2,
   RefreshCw,
   Home,
-  Phone,
-  Mail
+  Mail,
+  Ban,
+  CheckCircle2
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -39,6 +37,10 @@ import { ConsumerService, ConsumerWithStatus } from "@/lib/consumer-service"
 import { useEffect, useState } from "react"
 import { AddConsumerDialog } from "@/components/add-consumer-dialog"
 import { ViewConsumerDetailsDialog } from "@/components/view-consumer-details-dialog"
+import { ConsumerMeterReadingHistoryDialog } from "@/components/consumer-meter-reading-history-dialog"
+import { ConsumerBillingPaymentHistoryDialog } from "@/components/consumer-billing-payment-history-dialog"
+import { ConsumerMaintenanceReportHistoryDialog } from "@/components/consumer-maintenance-report-history-dialog"
+import { Droplets, Receipt, Wrench } from "lucide-react"
 
 export default function ConsumerManagementPage() {
   const [consumers, setConsumers] = useState<ConsumerWithStatus[]>([])
@@ -48,6 +50,9 @@ export default function ConsumerManagementPage() {
   const [filteredConsumers, setFilteredConsumers] = useState<ConsumerWithStatus[]>([])
   const [selectedConsumer, setSelectedConsumer] = useState<ConsumerWithStatus | null>(null)
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false)
+  const [meterReadingDialogOpen, setMeterReadingDialogOpen] = useState(false)
+  const [billingDialogOpen, setBillingDialogOpen] = useState(false)
+  const [maintenanceDialogOpen, setMaintenanceDialogOpen] = useState(false)
 
   // Fetch consumers from Supabase
   const fetchConsumers = async () => {
@@ -91,19 +96,63 @@ export default function ConsumerManagementPage() {
     setDetailsDialogOpen(true)
   }
 
-  // Handle consumer payment status update
-  const handleStatusUpdate = async (consumerId: string, paymentStatus: string) => {
+  // Handle opening meter reading history
+  const handleViewMeterReadingHistory = (consumer: ConsumerWithStatus) => {
+    setSelectedConsumer(consumer)
+    setMeterReadingDialogOpen(true)
+  }
+
+  // Handle opening billing history
+  const handleViewBillingHistory = (consumer: ConsumerWithStatus) => {
+    setSelectedConsumer(consumer)
+    setBillingDialogOpen(true)
+  }
+
+  // Handle opening maintenance report history
+  const handleViewMaintenanceHistory = (consumer: ConsumerWithStatus) => {
+    setSelectedConsumer(consumer)
+    setMaintenanceDialogOpen(true)
+  }
+
+  // Handle suspending a consumer
+  const handleSuspendConsumer = async (consumer: ConsumerWithStatus) => {
+    if (!consumer.account?.id) {
+      setError('Consumer account ID not found')
+      return
+    }
+
     try {
-      const { error } = await ConsumerService.updateConsumerPaymentStatus(consumerId, paymentStatus)
+      const { error } = await ConsumerService.suspendConsumer(consumer.account.id)
       if (error) {
-        setError(error.message || 'Failed to update consumer payment status')
+        setError(error.message || 'Failed to suspend consumer')
         return
       }
       // Refresh the consumers list
       await fetchConsumers()
     } catch (err) {
       setError('An unexpected error occurred')
-      console.error('Error updating consumer payment status:', err)
+      console.error('Error suspending consumer:', err)
+    }
+  }
+
+  // Handle unsuspending a consumer
+  const handleUnsuspendConsumer = async (consumer: ConsumerWithStatus) => {
+    if (!consumer.account?.id) {
+      setError('Consumer account ID not found')
+      return
+    }
+
+    try {
+      const { error } = await ConsumerService.unsuspendConsumer(consumer.account.id)
+      if (error) {
+        setError(error.message || 'Failed to unsuspend consumer')
+        return
+      }
+      // Refresh the consumers list
+      await fetchConsumers()
+    } catch (err) {
+      setError('An unexpected error occurred')
+      console.error('Error unsuspending consumer:', err)
     }
   }
 
@@ -131,21 +180,6 @@ export default function ConsumerManagementPage() {
       month: 'short',
       day: 'numeric'
     })
-  }
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "paid":
-        return <Badge variant="default" className="bg-green-100 text-green-800"><CheckCircle className="h-3 w-3 mr-1" />Paid</Badge>
-      case "unpaid":
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800"><Clock className="h-3 w-3 mr-1" />Unpaid</Badge>
-      case "partial":
-        return <Badge variant="outline" className="bg-blue-100 text-blue-800"><Clock className="h-3 w-3 mr-1" />Partial</Badge>
-      case "overdue":
-        return <Badge variant="destructive"><XCircle className="h-3 w-3 mr-1" />Overdue</Badge>
-      default:
-        return <Badge variant="outline">{status}</Badge>
-    }
   }
 
   // Load consumers on component mount
@@ -238,7 +272,15 @@ export default function ConsumerManagementPage() {
                       <TableCell className="font-medium">
                         <div className="flex items-center space-x-2">
                           <Home className="h-4 w-4 text-muted-foreground" />
+                          <div className="flex flex-col">
                           <span>{consumer.account?.full_name || 'No name provided'}</span>
+                            {consumer.account?.status === 'suspended' && (
+                              <Badge variant="destructive" className="mt-1 w-fit">
+                                <Ban className="h-3 w-3 mr-1" />
+                                Suspended
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -275,9 +317,37 @@ export default function ConsumerManagementPage() {
                             <DropdownMenuItem onClick={() => handleViewDetails(consumer)}>
                               View Details
                             </DropdownMenuItem>
-                          
-                            
-                           
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleViewMeterReadingHistory(consumer)}>
+                              <Droplets className="h-4 w-4 mr-2" />
+                              Meter Reading History
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleViewBillingHistory(consumer)}>
+                              <Receipt className="h-4 w-4 mr-2" />
+                              Billing & Payment History
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleViewMaintenanceHistory(consumer)}>
+                              <Wrench className="h-4 w-4 mr-2" />
+                              Maintenance Report History
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            {consumer.account?.status === 'suspended' ? (
+                              <DropdownMenuItem 
+                                onClick={() => handleUnsuspendConsumer(consumer)}
+                                className="text-green-600"
+                              >
+                                <CheckCircle2 className="h-4 w-4 mr-2" />
+                                Unsuspend Consumer
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem 
+                                onClick={() => handleSuspendConsumer(consumer)}
+                                className="text-red-600"
+                              >
+                                <Ban className="h-4 w-4 mr-2" />
+                                Suspend Consumer
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -295,6 +365,27 @@ export default function ConsumerManagementPage() {
         consumer={selectedConsumer}
         open={detailsDialogOpen}
         onOpenChange={setDetailsDialogOpen}
+      />
+
+      {/* Meter Reading History Dialog */}
+      <ConsumerMeterReadingHistoryDialog
+        consumer={selectedConsumer}
+        open={meterReadingDialogOpen}
+        onOpenChange={setMeterReadingDialogOpen}
+      />
+
+      {/* Billing & Payment History Dialog */}
+      <ConsumerBillingPaymentHistoryDialog
+        consumer={selectedConsumer}
+        open={billingDialogOpen}
+        onOpenChange={setBillingDialogOpen}
+      />
+
+      {/* Maintenance Report History Dialog */}
+      <ConsumerMaintenanceReportHistoryDialog
+        consumer={selectedConsumer}
+        open={maintenanceDialogOpen}
+        onOpenChange={setMaintenanceDialogOpen}
       />
     </AdminLayout>
   )

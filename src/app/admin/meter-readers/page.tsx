@@ -16,18 +16,14 @@ import {
 import { 
   Users, 
   Search, 
-  Filter, 
   MoreHorizontal,
   CheckCircle,
   XCircle,
-  Clock,
-  UserPlus,
   Loader2,
   RefreshCw,
   Droplets,
-  MapPin,
-  Calendar,
-  Activity
+  Ban,
+  UserCheck
 } from "lucide-react"
 import {
   DropdownMenu,
@@ -56,6 +52,7 @@ export default function MeterReaderManagementPage() {
   const [selectedMeterReaderForViewing, setSelectedMeterReaderForViewing] = useState<{id: number, name: string} | null>(null)
   const [assignmentCounts, setAssignmentCounts] = useState<Record<number, number>>({})
   const [completedCounts, setCompletedCounts] = useState<Record<number, number>>({})
+  const [suspendingId, setSuspendingId] = useState<number | null>(null)
 
   // Fetch meter readers from Supabase
   const fetchMeterReaders = async () => {
@@ -179,22 +176,62 @@ export default function MeterReaderManagementPage() {
     })
   }
 
-  // Format last login date
-  const formatLastLogin = (dateString: string | null) => {
-    if (!dateString) return 'Never'
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+
+  // Handle suspend meter reader
+  const handleSuspend = async (reader: MeterReaderUser) => {
+    if (!confirm(`Are you sure you want to suspend ${reader.full_name || 'this meter reader'}? They will lose access to the mobile app.`)) {
+      return
+    }
+
+    try {
+      setSuspendingId(reader.id)
+      const { error } = await MeterReaderService.suspendMeterReader(reader.id.toString())
+      
+      if (error) {
+        setError(error.message || 'Failed to suspend meter reader')
+        return
+      }
+      
+      // Refresh the list
+      await fetchMeterReaders()
+    } catch (err) {
+      setError('An unexpected error occurred')
+      console.error('Error suspending meter reader:', err)
+    } finally {
+      setSuspendingId(null)
+    }
+  }
+
+  // Handle unsuspend meter reader
+  const handleUnsuspend = async (reader: MeterReaderUser) => {
+    if (!confirm(`Are you sure you want to unsuspend ${reader.full_name || 'this meter reader'}? They will regain access to the mobile app.`)) {
+      return
+    }
+
+    try {
+      setSuspendingId(reader.id)
+      const { error } = await MeterReaderService.unsuspendMeterReader(reader.id.toString())
+      
+      if (error) {
+        setError(error.message || 'Failed to unsuspend meter reader')
+        return
+      }
+      
+      // Refresh the list
+      await fetchMeterReaders()
+    } catch (err) {
+      setError('An unexpected error occurred')
+      console.error('Error unsuspending meter reader:', err)
+    } finally {
+      setSuspendingId(null)
+    }
   }
 
   // Load meter readers on component mount
   useEffect(() => {
     console.log('🎯 Component mounted, starting meter reader fetch...')
     fetchMeterReaders()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (
@@ -272,6 +309,7 @@ export default function MeterReaderManagementPage() {
                     <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Mobile Number</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Assigned</TableHead>
                     <TableHead>Completed</TableHead>
                     <TableHead>Created</TableHead>
@@ -294,6 +332,19 @@ export default function MeterReaderManagementPage() {
                         <div className="text-sm">
                           {reader.mobile_no ? reader.mobile_no.toString() : 'No phone provided'}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {reader.status === 'suspended' ? (
+                          <Badge variant="destructive" className="bg-red-50 text-red-700 border-red-200">
+                            <Ban className="h-3 w-3 mr-1" />
+                            Suspended
+                          </Badge>
+                        ) : (
+                          <Badge variant="default" className="bg-green-50 text-green-700 border-green-200">
+                            <UserCheck className="h-3 w-3 mr-1" />
+                            Active
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">
@@ -340,7 +391,34 @@ export default function MeterReaderManagementPage() {
                               <Droplets className="h-4 w-4 mr-2" />
                               Assign Consumers
                             </DropdownMenuItem>
-                      
+                            <DropdownMenuSeparator />
+                            {reader.status === 'suspended' ? (
+                              <DropdownMenuItem 
+                                onClick={() => handleUnsuspend(reader)}
+                                disabled={suspendingId === reader.id}
+                                className="text-green-600"
+                              >
+                                {suspendingId === reader.id ? (
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                  <UserCheck className="h-4 w-4 mr-2" />
+                                )}
+                                Unsuspend
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem 
+                                onClick={() => handleSuspend(reader)}
+                                disabled={suspendingId === reader.id}
+                                className="text-red-600"
+                              >
+                                {suspendingId === reader.id ? (
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                  <Ban className="h-4 w-4 mr-2" />
+                                )}
+                                Suspend
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -360,6 +438,14 @@ export default function MeterReaderManagementPage() {
           onOpenChange={setAssignDialogOpen}
           meterReaderId={selectedMeterReaderForAssignment.id}
           meterReaderName={selectedMeterReaderForAssignment.name}
+          onConsumersAssigned={async () => {
+            // Refresh assignment counts when consumers are assigned
+            const reader = meterReaders.find(r => r.id === selectedMeterReaderForAssignment.id)
+            if (reader?.meter_reader_id) {
+              await fetchAssignmentCounts([reader.meter_reader_id])
+              await fetchCompletedCounts([reader.meter_reader_id])
+            }
+          }}
         />
       )}
 
@@ -370,6 +456,14 @@ export default function MeterReaderManagementPage() {
           onOpenChange={setViewAssignedDialogOpen}
           meterReaderId={selectedMeterReaderForViewing.id}
           meterReaderName={selectedMeterReaderForViewing.name}
+          onAssignmentRemoved={async () => {
+            // Refresh assignment counts when an assignment is removed
+            const reader = meterReaders.find(r => r.id === selectedMeterReaderForViewing.id)
+            if (reader?.meter_reader_id) {
+              await fetchAssignmentCounts([reader.meter_reader_id])
+              await fetchCompletedCounts([reader.meter_reader_id])
+            }
+          }}
         />
       )}
     </AdminLayout>

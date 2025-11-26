@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -22,14 +22,14 @@ import {
   RefreshCw,
   Loader2,
   Printer,
-  Eye
+  Eye,
+  Download
 } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { AdminLayout } from "@/components/admin-layout"
@@ -37,6 +37,7 @@ import { supabase } from "@/lib/supabase"
 import { ViewBillingDetailsDialog } from "@/components/view-billing-details-dialog"
 import { BillingWithDetails } from "@/lib/billing-service"
 import { PrintableBill } from "@/components/printable-bill"
+import { convertToCSV, downloadCSV } from "@/lib/export-utils"
 
 export default function AdminTransactionsPage() {
   const [transactions, setTransactions] = useState<BillingWithDetails[]>([])
@@ -52,9 +53,26 @@ export default function AdminTransactionsPage() {
     fetchTransactions()
   }, [])
 
+  const handleSearch = useCallback((query: string) => {
+    setSearchQuery(query)
+    
+    let filtered = transactions
+
+    // Filter by search query
+    if (query.trim()) {
+      filtered = filtered.filter(transaction => 
+        transaction.consumer?.accounts?.full_name?.toLowerCase().includes(query.toLowerCase()) ||
+        transaction.consumer?.water_meter_no?.toLowerCase().includes(query.toLowerCase()) ||
+        transaction.consumer?.accounts?.email?.toLowerCase().includes(query.toLowerCase())
+      )
+    }
+
+    setFilteredTransactions(filtered)
+  }, [transactions])
+
   useEffect(() => {
     handleSearch(searchQuery)
-  }, [transactions, searchQuery])
+  }, [transactions, searchQuery, handleSearch])
 
   const fetchTransactions = async () => {
     try {
@@ -85,7 +103,58 @@ export default function AdminTransactionsPage() {
       }
 
       // Transform the data to match our BillingWithDetails interface
-      const transformedTransactions = (data || []).map((billing: any) => {
+      interface SupabaseBillingResult {
+        id: string
+        consumer_id: string
+        meter_reading_id: string | null
+        billing_month: string
+        consumption_10_or_below: number
+        amount_10_or_below: number
+        amount_10_or_below_with_discount: number
+        consumption_over_10: number
+        amount_over_10: number
+        amount_current_billing: number
+        arrears_to_be_paid: number
+        total_amount_due: number
+        due_date: string
+        arrears_after_due_date: number | null
+        payment_status: string
+        payment_date: string | null
+        amount_paid: number
+        created_at: string
+        updated_at: string
+        consumers?: {
+          id: string
+          water_meter_no: string
+          consumer_id: number | null
+          registered_voter: boolean | null
+          created_at: string
+          updated_at: string
+          accounts?: {
+            id: number
+            email: string | null
+            password: string | null
+            created_at: string
+            full_name: string | null
+            full_address: string | null
+            mobile_no: number | null
+            user_type: string | null
+          } | null
+        } | null
+        bawasa_meter_readings?: {
+          id: string
+          consumer_id: string
+          reading_date: string
+          previous_reading: number
+          present_reading: number
+          consumption_cubic_meters: number | null
+          meter_image: string | null
+          created_at: string
+          updated_at: string
+        } | null
+      }
+
+      const transformedTransactions = (data || []).map((billing: SupabaseBillingResult): BillingWithDetails => {
         const consumer = billing.consumers
         const account = consumer?.accounts
         const meterReading = billing.bawasa_meter_readings
@@ -94,11 +163,11 @@ export default function AdminTransactionsPage() {
           ...billing,
           consumer: consumer ? {
             ...consumer,
-            accounts: account || null
-          } : null,
-          account: account || null,
-          meter_reading: meterReading || null
-        }
+            accounts: account || undefined
+          } : undefined,
+          account: account || undefined,
+          meter_reading: meterReading || undefined
+        } as BillingWithDetails
       })
 
       setTransactions(transformedTransactions)
@@ -110,22 +179,6 @@ export default function AdminTransactionsPage() {
     }
   }
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query)
-    
-    let filtered = transactions
-
-    // Filter by search query
-    if (query.trim()) {
-      filtered = filtered.filter(transaction => 
-        transaction.consumer?.accounts?.full_name?.toLowerCase().includes(query.toLowerCase()) ||
-        transaction.consumer?.water_meter_no?.toLowerCase().includes(query.toLowerCase()) ||
-        transaction.consumer?.accounts?.email?.toLowerCase().includes(query.toLowerCase())
-      )
-    }
-
-    setFilteredTransactions(filtered)
-  }
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-PH', {
@@ -169,6 +222,53 @@ export default function AdminTransactionsPage() {
     }, 100)
   }
 
+  const handleExportTransactions = () => {
+    if (filteredTransactions.length === 0) return
+
+    const exportData = filteredTransactions.map(transaction => ({
+      'Transaction ID': transaction.id,
+      'Customer Name': transaction.consumer?.accounts?.full_name || 'Unknown',
+      'Email': transaction.consumer?.accounts?.email || 'N/A',
+      'Water Meter No': transaction.consumer?.water_meter_no || 'N/A',
+      'Billing Month': transaction.billing_month,
+      'Amount Due': transaction.total_amount_due.toFixed(2),
+      'Amount Paid': transaction.amount_paid.toFixed(2),
+      'Payment Status': transaction.payment_status,
+      'Payment Date': formatDateTime(transaction.payment_date),
+      'Consumption (≤10 cu.m)': transaction.consumption_10_or_below?.toFixed(2) || '0.00',
+      'Amount (≤10 cu.m)': transaction.amount_10_or_below?.toFixed(2) || '0.00',
+      'Consumption (>10 cu.m)': transaction.consumption_over_10?.toFixed(2) || '0.00',
+      'Amount (>10 cu.m)': transaction.amount_over_10?.toFixed(2) || '0.00',
+      'Arrears': transaction.arrears_to_be_paid?.toFixed(2) || '0.00',
+      'Arrears After Due Date': transaction.arrears_after_due_date?.toFixed(2) || '0.00',
+      'Created At': formatDateTime(transaction.created_at)
+    }))
+
+    const headers = [
+      'Transaction ID',
+      'Customer Name',
+      'Email',
+      'Water Meter No',
+      'Billing Month',
+      'Amount Due',
+      'Amount Paid',
+      'Payment Status',
+      'Payment Date',
+      'Consumption (≤10 cu.m)',
+      'Amount (≤10 cu.m)',
+      'Consumption (>10 cu.m)',
+      'Amount (>10 cu.m)',
+      'Arrears',
+      'Arrears After Due Date',
+      'Created At'
+    ]
+
+    const csvContent = convertToCSV(exportData, headers)
+    const filename = `admin_transactions_${new Date().toISOString().split('T')[0]}.csv`
+    
+    downloadCSV(csvContent, filename)
+  }
+
   // Handle print cleanup
   useEffect(() => {
     const handleAfterPrint = () => {
@@ -191,10 +291,20 @@ export default function AdminTransactionsPage() {
             <h1 className="text-3xl font-bold text-gray-900">Transaction History</h1>
             <p className="text-gray-600">View and manage payment transactions</p>
           </div>
+          <div className="flex items-center space-x-2">
+            <Button 
+              onClick={handleExportTransactions} 
+              disabled={loading || filteredTransactions.length === 0} 
+              variant="outline"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
           <Button onClick={fetchTransactions} disabled={loading} variant="outline">
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
+          </div>
         </div>
 
         {/* Error Message */}
