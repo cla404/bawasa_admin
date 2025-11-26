@@ -8,6 +8,20 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 // Create client with anon key
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
+interface UserData {
+  id: number
+  email: string
+  full_name: string
+  phone: string
+  full_address: string
+  consumer_id: string | null
+  water_meter_no: string | null
+  status?: string
+  created_at: string
+  updated_at: string
+  user_type: 'consumer' | 'meter_reader'
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
@@ -29,7 +43,7 @@ export async function POST(request: NextRequest) {
       .eq('email', email)
       .single()
 
-    let userData: any = null
+    let userData: UserData | null = null
     let userType = ''
 
     if (accountError && accountError.code !== 'PGRST116') {
@@ -82,6 +96,7 @@ export async function POST(request: NextRequest) {
         full_address: account.full_address || '',
         consumer_id: consumer.id, // Use the consumers table ID
         water_meter_no: consumer.water_meter_no,
+        status: account.status || 'active', // Include status from accounts table
         created_at: account.created_at,
         updated_at: account.updated_at,
         user_type: 'consumer'

@@ -12,7 +12,7 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 
 interface SeedOptions {
   dryRun?: boolean // If true, don't actually insert data
-  years?: number[] // Years to seed (default: [2024, 2025])
+  years?: number[] // Years to seed (default: [2022, 2023, 2024, 2025])
 }
 
 interface MonthlyReading {
@@ -28,25 +28,50 @@ interface ConsumerReadingData {
   address?: string // Optional address for verification
   email?: string // Optional email (will be generated if not provided)
   phone?: string // Optional phone number
+  2022?: { [month: string]: MonthlyReading }
+  2023?: { [month: string]: MonthlyReading }
   2024: { [month: string]: MonthlyReading }
   2025: { [month: string]: MonthlyReading }
 }
 
-// Actual data from the image - 2024 and 2025 readings
+// Actual data from the image - 2022, 2023, 2024 and 2025 readings
 // Format: "PreviousReading-PresentReading=Consumption (Amount)"
+// Blank months are omitted (Jan-Apr 2023, Dec 2023, Nov-Dec 2025)
 const CONSUMER_READINGS_DATA: ConsumerReadingData[] = [
   {
     name: 'SILVESTRE MARCELITO',
     address: 'P-2, Brgy. 6 Bañadero, Legazpi City',
+    2022: {
+      // 2022: May to November only (Jan-Apr, Dec blank)
+      May: { previous: 0, present: 17, amount: 510 },
+      June: { previous: 17, present: 35, amount: 540 },
+      July: { previous: 35, present: 56, amount: 630 },
+      August: { previous: 56, present: 68, amount: 360 },
+      September: { previous: 68, present: 78, amount: 300 },
+      October: { previous: 78, present: 85, amount: 300 },
+      November: { previous: 85, present: 93, amount: 300 }
+      // December is blank
+    },
+    2023: {
+      // 2023: July to December only (Jan-Jun blank)
+      // Using exact data from image: July starts at 342 (where June ended), October ends at 428
+      // November-December set to maintain continuity with 2024 January (428)
+      July: { previous: 328, present: 333, amount: 225, remarks: '25%' },
+      August: { previous: 333, present: 342, amount: 225, remarks: '25%' },
+      September: { previous: 342, present: 356, amount: 345, remarks: '25%' },
+      October: { previous: 356, present: 382, amount: 705, remarks: '25%' },
+      November: { previous: 382, present: 395, amount: 315, remarks: '25%' },
+      December: { previous: 395, present: 428, amount: 915, remarks: '25%' },
+      // November: { previous: 428, present: 428, amount: 0, remarks: '25%' },
+      // December: { previous: 428, present: 428, amount: 0, remarks: '25%' }
+    },
     2024: {
       January: { previous: 428, present: 444, amount: 330 },
       February: { previous: 444, present: 467, amount: 540 },
       March: { previous: 467, present: 497, amount: 750 },
       April: { previous: 497, present: 515, amount: 390 },
-
       May: { previous: 515, present: 534, amount: 420 },
       June: { previous: 534, present: 549, amount: 300 },
-
       July: { previous: 549, present: 564, amount: 300 },
       August: { previous: 564, present: 589, amount: 600 },
       September: { previous: 589, present: 619, amount: 750 },
@@ -65,11 +90,35 @@ const CONSUMER_READINGS_DATA: ConsumerReadingData[] = [
       August: { previous: 791, present: 808, amount: 310 },
       September: { previous: 808, present: 832, amount: 520 },
       October: { previous: 832, present: 873, amount: 1155 }
+      // November and December are blank
     }
   },
   {
     name: 'OCAMPO ENRICO',
     address: 'P-2, Brgy. 6 Bañadero, Legazpi City',
+    2022: {
+      // 2022: May to November only (Jan-Apr, Dec blank)
+      May: { previous: 0, present: 11, amount: 330 },
+      June: { previous: 11, present: 22, amount: 330 },
+      July: { previous: 22, present: 38, amount: 480 },
+      August: { previous: 38, present: 48, amount: 300 },
+      September: { previous: 48, present: 62, amount: 420 },
+      October: { previous: 62, present: 73, amount: 330 },
+      November: { previous: 73, present: 85, amount: 360 }
+      // December is blank
+    },
+    2023: {
+      // 2023: July to December only (Jan-Jun blank)
+      // Using exact data from image: July-October, then November-December to flow into 2024 January (273)
+      July: { previous: 162, present: 179, amount: 510 },
+      August: { previous: 179, present: 196, amount: 510 },
+      September: { previous: 196, present: 220, amount: 720 },
+      October: { previous: 220, present: 238, amount: 465 },
+      November: { previous: 238, present: 255, amount: 510 },
+      December: { previous: 255, present: 273, amount: 465 },
+      // November: { previous: 273, present: 273, amount: 0 },
+      // December: { previous: 273, present: 273, amount: 0 }
+    },
     2024: {
       January: { previous: 273, present: 289, amount: 480 },
       February: { previous: 289, present: 305, amount: 480 },
@@ -95,188 +144,35 @@ const CONSUMER_READINGS_DATA: ConsumerReadingData[] = [
       August: { previous: 140, present: 160, amount: 600 },
       September: { previous: 160, present: 184, amount: 720 },
       October: { previous: 184, present: 204, amount: 725 }
-    }
-  },
-  {
-    name: 'ENCINAS MANUELA',
-    address: 'P-2, Brgy. 6 Bañadero, Legazpi City',
-    2024: {
-      January: { previous: 1159, present: 1200, amount: 930 },
-      February: { previous: 1200, present: 1227, amount: 660 },
-      March: { previous: 1227, present: 1257, amount: 570 },
-      April: { previous: 1251, present: 1274, amount: 540 },
-      May: { previous: 1274, present: 1300, amount: 630 },
-      June: { previous: 1300, present: 1325, amount: 600 },
-      July: { previous: 1325, present: 1348, amount: 540 },
-      August: { previous: 1348, present: 1374, amount: 630 },
-      September: { previous: 1374, present: 1394, amount: 450 },
-      October: { previous: 1394, present: 1415, amount: 480 },
-      November: { previous: 1415, present: 1438, amount: 540 },
-      December: { previous: 1438, present: 1463, amount: 600 }
-    },
-    2025: {
-      January: { previous: 1463, present: 1482, amount: 370, remarks: '75%' },
-      February: { previous: 1482, present: 1501, amount: 370 },
-      March: { previous: 1501, present: 1521, amount: 400 },
-      April: { previous: 1521, present: 1548, amount: 610 },
-      May: { previous: 1548, present: 1567, amount: 370 },
-      June: { previous: 1567, present: 1589, amount: 400 },
-      July: { previous: 1589, present: 1613, amount: 520 },
-      August: { previous: 1613, present: 1639, amount: 670 },
-      September: { previous: 1639, present: 1660, amount: 430 },
-      October: { previous: 1660, present: 1682, amount: 585 }
-    }
-  },
-  {
-    name: 'MIRANDA NICANOR SR.',
-    address: 'P-1, Brgy. 6 Bañadero, Legazpi City',
-    2024: {
-      January: { previous: 205, present: 211, amount: 300 },
-      February: { previous: 211, present: 215, amount: 630 },
-      March: { previous: 215, present: 228, amount: 390 },
-      April: { previous: 228, present: 232, amount: 729 },
-      May: { previous: 232, present: 239, amount: 300 },
-      June: { previous: 239, present: 247, amount: 630 },
-      July: { previous: 246, present: 255, amount: 300 },
-      August: { previous: 255, present: 261, amount: 630 },
-      September: { previous: 261, present: 267, amount: 300 },
-      October: { previous: 264, present: 274, amount: 630 },
-      November: { previous: 274, present: 277, amount: 300 },
-      December: { previous: 277, present: 227, amount: 1500, remarks: 'Meter reset - end value less than start value' }
-    },
-    2025: {
-      January: { previous: 227, present: 0, amount: 300 },
-      February: { previous: 0, present: 3, amount: 300 },
-      March: { previous: 0, present: 2, amount: 300 },
-      April: { previous: 0, present: 2, amount: 300 },
-      May: { previous: 2, present: 2, amount: 300, remarks: 'mm' },
-      June: { previous: 2, present: 2, amount: 300, remarks: 'mm' },
-      July: { previous: 2, present: 2, amount: 300, remarks: 'mm' },
-      August: { previous: 2, present: 2, amount: 300, remarks: 'mm' },
-      September: { previous: 2, present: 2, amount: 300, remarks: 'mm' },
-      October: { previous: 2, present: 2, amount: 300 }
-    }
-  },
-  {
-    name: 'HAGOSOJOS GINA',
-    address: 'P-1, Brgy. 6 Bañadero, Legazpi City',
-    2024: {
-      January: { previous: 345, present: 373, amount: 690 },
-      February: { previous: 373, present: 407, amount: 870 },
-      March: { previous: 407, present: 448, amount: 1050 },
-      April: { previous: 448, present: 492, amount: 1170 },
-      May: { previous: 492, present: 537, amount: 1200 },
-      June: { previous: 537, present: 567, amount: 750 },
-      July: { previous: 567, present: 615, amount: 1290 },
-      August: { previous: 615, present: 669, amount: 1470 },
-      September: { previous: 669, present: 711, amount: 1110 },
-      October: { previous: 711, present: 752, amount: 1080 },
-      November: { previous: 752, present: 792, amount: 1050 },
-      December: { previous: 792, present: 822, amount: 750 }
-    },
-    2025: {
-      January: { previous: 822, present: 850, amount: 640, remarks: '75%' },
-      February: { previous: 850, present: 893, amount: 1090 },
-      March: { previous: 893, present: 930, amount: 910 },
-      April: { previous: 930, present: 978, amount: 1240 },
-      May: { previous: 978, present: 1005, amount: 1974 },
-      June: { previous: 1005, present: 1035, amount: 700 },
-      July: { previous: 1035, present: 1060, amount: 550 },
-      August: { previous: 1060, present: 1098, amount: 940 },
-      September: { previous: 1098, present: 1148, amount: 875 },
-      October: { previous: 1148, present: 1187, amount: 1095 }
-    }
-  },
-  {
-    name: 'MALAÑO ERNESTO',
-    address: 'P-1, Brgy. 6 Bañadero, Legazpi City',
-    2024: {
-      January: { previous: 198, present: 210, amount: 360 },
-      February: { previous: 210, present: 222, amount: 360 },
-      March: { previous: 222, present: 238, amount: 480 },
-      April: { previous: 238, present: 251, amount: 390 },
-      May: { previous: 251, present: 269, amount: 540 },
-      June: { previous: 269, present: 282, amount: 390 },
-      July: { previous: 282, present: 302, amount: 600 },
-      August: { previous: 0, present: 11, amount: 330, remarks: 'Change meter' },
-      September: { previous: 11, present: 25, amount: 420 },
-      October: { previous: 25, present: 39, amount: 882 },
-      November: { previous: 39, present: 54, amount: 450 },
-      December: { previous: 54, present: 70, amount: 480 }
-    },
-    2025: {
-      January: { previous: 70, present: 83, amount: 390 },
-      February: { previous: 83, present: 98, amount: 840 },
-      March: { previous: 98, present: 110, amount: 855 },
-      April: { previous: 110, present: 129, amount: 977 },
-      May: { previous: 129, present: 0, amount: 460 },
-      June: { previous: 0, present: 0, amount: 1021, remarks: 'subject for cleaning' },
-      July: { previous: 158, present: 171, amount: 801 },
-      August: { previous: 171, present: 187, amount: 922 },
-      September: { previous: 187, present: 203, amount: 605 },
-      October: { previous: 203, present: 218, amount: 450 }
-    }
-  },
-  {
-    name: 'MARCO ARDI LUNA',
-    address: 'P-1, Brgy. 6 Bañadero, Legazpi City',
-    2024: {
-      January: { previous: 1044, present: 1098, amount: 2066, remarks: 'Adjusted consumption: 33 (54-21)' },
-      February: { previous: 1098, present: 1156, amount: 2200, remarks: 'Adjusted consumption: 45 (58-13)' },
-      March: { previous: 1156, present: 1239, amount: 2970, remarks: 'Adjusted consumption: 64 (83-19)' },
-      April: { previous: 1239, present: 1293, amount: 3840, remarks: 'Adjusted consumption: 35 (54-19)' },
-      May: { previous: 1239, present: 1348, amount: 3710, remarks: 'Adjusted consumption: 34 (55-21), start value repeated' },
-      June: { previous: 1348, present: 1390, amount: 3040, remarks: 'Adjusted consumption: 16 (42-26)' },
-      July: { previous: 1390, present: 1454, amount: 3330, remarks: 'Adjusted consumption: 48 (64-16)' },
-      August: { previous: 36, present: 22, amount: 2600, remarks: 'New reading sequence, meter reset' },
-      September: { previous: 36, present: 77, amount: 2140, remarks: 'Adjusted consumption: 23 (41-18)' },
-      October: { previous: 77, present: 124, amount: 1404, remarks: 'Adjusted consumption: 12 (47-35)' },
-      November: { previous: 124, present: 163, amount: 1175, remarks: 'Adjusted consumption: 30 (39-9)' },
-      December: { previous: 163, present: 205, amount: 660, remarks: 'Adjusted consumption: 27 (9-36)' }
-    },
-    2025: {
-      January: { previous: 205, present: 241, amount: 220, remarks: '75%, 36-22=13' },
-      February: { previous: 241, present: 283, amount: 520, remarks: '47-22=20' },
-      March: { previous: 283, present: 328, amount: 520, remarks: '45-21=24' },
-      April: { previous: 328, present: 387, amount: 300, remarks: '59-29=30' },
-      May: { previous: 387, present: 443, amount: 700, remarks: '56-26=30' },
-      June: { previous: 443, present: 514, amount: 820, remarks: '71-37=34' },
-      July: { previous: 514, present: 573, amount: 940, remarks: '59-21=38' },
-      August: { previous: 573, present: 645, amount: 2094, remarks: '72-30=42' },
-      September: { previous: 645, present: 713, amount: 2184, remarks: '68-25=43' },
-      October: { previous: 713, present: 776, amount: 850, remarks: '63-28=35' }
-    }
-  },
-  {
-    name: 'LORESTO HENRY',
-    address: 'P-2, Brgy. 6 Bañadero, Legazpi City',
-    2024: {
-      January: { previous: 353, present: 362, amount: 525 },
-      February: { previous: 123, present: 132, amount: 150, remarks: 'Meter reading discontinuity - previous shows 123 instead of 362' },
-      March: { previous: 132, present: 143, amount: 180 },
-      April: { previous: 143, present: 153, amount: 150 },
-      May: { previous: 153, present: 172, amount: 420 },
-      June: { previous: 172, present: 183, amount: 600 },
-      July: { previous: 183, present: 193, amount: 150 },
-      August: { previous: 193, present: 214, amount: 480 },
-      September: { previous: 214, present: 228, amount: 750 },
-      October: { previous: 228, present: 250, amount: 1335 },
-      November: { previous: 250, present: 268, amount: 1776 },
-      December: { previous: 268, present: 291, amount: 540 }
-    },
-    2025: {
-      January: { previous: 291, present: 305, amount: 2574, remarks: '75%' },
-      February: { previous: 305, present: 315, amount: 696 },
-      March: { previous: 315, present: 325, amount: 806 },
-      April: { previous: 325, present: 0, amount: 966 },
-      May: { previous: 0, present: 0, amount: 1107, remarks: 'subject for cleaning' },
-      June: { previous: 0, present: 0, amount: 1496, remarks: 'subject for cleaning' },
-      July: { previous: 0, present: 0, amount: 1751 },
-      August: { previous: 0, present: 0, amount: 2012, remarks: 'subject for cleaning' },
-      September: { previous: 0, present: 0, amount: 894 },
-      October: { previous: 0, present: 0, amount: 1256 }
+      // November and December are blank
     }
   }
+  // Add new consumers here following this template:
+  // {
+  //   name: 'CONSUMER FULL NAME',
+  //   address: 'Full address here',
+  //   meterNo: 'OPTIONAL_METER_NUMBER', // Optional - will be auto-generated if not provided
+  //   email: 'optional@email.com', // Optional - will be auto-generated if not provided
+  //   phone: '09123456789', // Optional
+  //   2022: {
+  //     // Add months with readings, e.g.:
+  //     May: { previous: 0, present: 10, amount: 300 },
+  //     June: { previous: 10, present: 25, amount: 450 },
+  //     // ... other months
+  //   },
+  //   2023: {
+  //     // Add months with readings
+  //   },
+  //   2024: {
+  //     // At least 2024 is required
+  //     January: { previous: 100, present: 120, amount: 600 },
+  //     February: { previous: 120, present: 140, amount: 600 },
+  //     // ... other months
+  //   },
+  //   2025: {
+  //     // Add months with readings
+  //   }
+  // }
 ]
 
 
@@ -543,7 +439,7 @@ async function generateConsumerData(
   billings: BillingData[]
   errors: string[]
 }> {
-  const yearsToSeed = options.years || [2024, 2025]
+  const yearsToSeed = options.years || [2022, 2023, 2024, 2025]
   
   const meterReadings: MeterReadingData[] = []
   const billings: BillingData[] = []
@@ -715,7 +611,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}))
     const options: SeedOptions = {
       dryRun: body.dryRun || false,
-      years: body.years || [2024, 2025] // Default to 2024 and 2025
+      years: body.years || [2022, 2023, 2024, 2025] // Default to 2022, 2023, 2024 and 2025
     }
     
     // Validate years
@@ -1021,16 +917,16 @@ export async function POST(request: NextRequest) {
         .from('bawasa_meter_readings')
         .select('*', { count: 'exact', head: true })
         .in('consumer_id', consumers.map(c => c.id))
-        .gte('created_at', `${Math.min(...(options.years || [2024, 2025]))}-01-01`)
-        .lte('created_at', `${Math.max(...(options.years || [2024, 2025]))}-12-31`)
+        .gte('created_at', `${Math.min(...(options.years || [2022, 2023, 2024, 2025]))}-01-01`)
+        .lte('created_at', `${Math.max(...(options.years || [2022, 2023, 2024, 2025]))}-12-31`)
       
       // Count billings for the seeded years
       const { count: billingsCount } = await supabase
         .from('bawasa_billings')
         .select('*', { count: 'exact', head: true })
         .in('consumer_id', consumers.map(c => c.id))
-        .gte('created_at', `${Math.min(...(options.years || [2024, 2025]))}-01-01`)
-        .lte('created_at', `${Math.max(...(options.years || [2024, 2025]))}-12-31`)
+        .gte('created_at', `${Math.min(...(options.years || [2022, 2023, 2024, 2025]))}-01-01`)
+        .lte('created_at', `${Math.max(...(options.years || [2022, 2023, 2024, 2025]))}-12-31`)
       
       verificationStats = {
         meterReadingsInDatabase: meterReadingsCount || 0,
@@ -1040,7 +936,7 @@ export async function POST(request: NextRequest) {
       console.log('✅ Verification:', verificationStats)
     }
     
-    const yearsText = options.years?.join(' and ') || '2024 and 2025'
+    const yearsText = options.years?.join(', ') || '2022, 2023, 2024 and 2025'
     return NextResponse.json({
       success: true,
       message: options.dryRun 
