@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -26,6 +26,7 @@ import {
   User
 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
+import { CashierAuthService } from "@/lib/cashier-auth-service"
 
 interface BillingRecord {
   id: string
@@ -56,6 +57,17 @@ export function PaymentProcessingDialog({ onPaymentProcessed }: PaymentProcessin
   const [selectedBill, setSelectedBill] = useState<BillingRecord | null>(null)
   const [paymentAmount, setPaymentAmount] = useState<string>("")
   const [searchLoading, setSearchLoading] = useState(false)
+  const [isSuspended, setIsSuspended] = useState(false)
+
+  useEffect(() => {
+    const checkStatus = async () => {
+      const response = await CashierAuthService.getCurrentCashier()
+      if (response.success && response.cashier) {
+        setIsSuspended(response.cashier.status === 'suspended')
+      }
+    }
+    checkStatus()
+  }, [])
 
   const handleSearch = async (query: string) => {
     setSearchQuery(query)
@@ -108,6 +120,18 @@ export function PaymentProcessingDialog({ onPaymentProcessed }: PaymentProcessin
   }
 
   const handlePayment = async () => {
+    // Check if cashier is suspended
+    const cashierResponse = await CashierAuthService.getCurrentCashier()
+    if (!cashierResponse.success || !cashierResponse.cashier) {
+      setError('Authentication failed. Please sign in again.')
+      return
+    }
+
+    if (cashierResponse.cashier.status === 'suspended') {
+      setError('Your account has been suspended. You cannot process payments. Please contact the administrator.')
+      return
+    }
+
     if (!selectedBill || !paymentAmount) {
       setError('Please select a bill and enter payment amount')
       return
@@ -174,10 +198,25 @@ export function PaymentProcessingDialog({ onPaymentProcessed }: PaymentProcessin
     })
   }
 
+  const [isSuspended, setIsSuspended] = useState(false)
+
+  useEffect(() => {
+    const checkStatus = async () => {
+      const response = await CashierAuthService.getCurrentCashier()
+      if (response.success && response.cashier) {
+        setIsSuspended(response.cashier.status === 'suspended')
+      }
+    }
+    checkStatus()
+  }, [])
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="h-20 flex flex-col items-center justify-center space-y-2">
+        <Button 
+          className="h-20 flex flex-col items-center justify-center space-y-2"
+          disabled={isSuspended}
+        >
           <CreditCard className="h-6 w-6" />
           <span>Process Payment</span>
         </Button>
@@ -189,6 +228,17 @@ export function PaymentProcessingDialog({ onPaymentProcessed }: PaymentProcessin
             Search for a customer bill and process their payment
           </DialogDescription>
         </DialogHeader>
+
+        {isSuspended && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-3">
+            <div className="flex items-center space-x-2 text-red-800">
+              <AlertCircle className="h-4 w-4" />
+              <span className="text-sm font-semibold">
+                Your account has been suspended. You cannot process payments. Please contact the administrator.
+              </span>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-md p-3">
@@ -213,7 +263,7 @@ export function PaymentProcessingDialog({ onPaymentProcessed }: PaymentProcessin
                     className="pl-8"
                     value={searchQuery}
                     onChange={(e) => handleSearch(e.target.value)}
-                    disabled={searchLoading}
+                    disabled={searchLoading || isSuspended}
                   />
                   {searchLoading && (
                     <Loader2 className="absolute right-2 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
@@ -308,6 +358,7 @@ export function PaymentProcessingDialog({ onPaymentProcessed }: PaymentProcessin
                     onChange={(e) => setPaymentAmount(e.target.value)}
                     className="pl-8"
                     placeholder="Enter payment amount"
+                    disabled={isSuspended}
                   />
                 </div>
                 <p className="text-sm text-gray-500">
@@ -346,11 +397,11 @@ export function PaymentProcessingDialog({ onPaymentProcessed }: PaymentProcessin
           </Button>
           <Button
             onClick={handlePayment}
-            disabled={loading || !selectedBill || !paymentAmount}
+            disabled={loading || !selectedBill || !paymentAmount || isSuspended}
           >
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             <CheckCircle className="h-4 w-4 mr-2" />
-            Process Payment
+            {isSuspended ? 'Cannot Process - Suspended' : 'Process Payment'}
           </Button>
         </DialogFooter>
       </DialogContent>

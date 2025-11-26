@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Users, Droplets, CheckCircle, Clock, AlertCircle } from "lucide-react"
+import { Loader2, Users, Droplets, CheckCircle, Clock, AlertCircle, X } from "lucide-react"
 import { toast } from "sonner"
 import { MeterReaderAssignmentService } from "@/lib/meter-reader-assignment-service"
 
@@ -19,6 +19,7 @@ interface ViewAssignedConsumersDialogProps {
   onOpenChange: (open: boolean) => void
   meterReaderId: number
   meterReaderName: string
+  onAssignmentRemoved?: () => void
 }
 
 interface ConsumerInfo {
@@ -35,10 +36,12 @@ export function ViewAssignedConsumersDialog({
   onOpenChange,
   meterReaderId,
   meterReaderName,
+  onAssignmentRemoved,
 }: ViewAssignedConsumersDialogProps) {
   const [consumers, setConsumers] = useState<ConsumerInfo[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [unassigningIds, setUnassigningIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (open) {
@@ -65,6 +68,51 @@ export function ViewAssignedConsumersDialog({
       setError('An unexpected error occurred')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleUnassign = async (consumerId: string, consumerName: string) => {
+    if (!confirm(`Are you sure you want to unassign ${consumerName} from ${meterReaderName}?`)) {
+      return
+    }
+
+    try {
+      setUnassigningIds(prev => new Set(prev).add(consumerId))
+      setError(null)
+
+      const { data, error } = await MeterReaderAssignmentService.removeAssignment(
+        meterReaderId,
+        consumerId
+      )
+
+      if (error) {
+        console.error('Error unassigning consumer:', error)
+        toast.error('Failed to unassign consumer', {
+          description: error.message || 'An error occurred while unassigning the consumer'
+        })
+        return
+      }
+
+      toast.success('Consumer unassigned successfully', {
+        description: `${consumerName} has been unassigned from ${meterReaderName}`
+      })
+
+      // Remove from local state
+      setConsumers(prev => prev.filter(c => c.id !== consumerId))
+
+      // Notify parent to refresh counts
+      if (onAssignmentRemoved) {
+        onAssignmentRemoved()
+      }
+    } catch (err) {
+      console.error('Unexpected error unassigning consumer:', err)
+      toast.error('An unexpected error occurred')
+    } finally {
+      setUnassigningIds(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(consumerId)
+        return newSet
+      })
     }
   }
 
@@ -172,6 +220,22 @@ export function ViewAssignedConsumersDialog({
                           )}
                         </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleUnassign(consumer.id, consumer.full_name)}
+                        disabled={unassigningIds.has(consumer.id)}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-4"
+                      >
+                        {unassigningIds.has(consumer.id) ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <X className="h-4 w-4 mr-1" />
+                            Unassign
+                          </>
+                        )}
+                      </Button>
                     </div>
                   </div>
                 ))}

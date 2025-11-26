@@ -71,6 +71,9 @@ export class CashierAuthService {
       // Step 4: Check if cashier is active
       if (cashierData.status !== 'active') {
         console.warn('⚠️ [CashierAuth] Cashier account is not active:', cashierData.status)
+        if (cashierData.status === 'suspended') {
+          return { success: false, error: 'Your account has been suspended. Please contact the administrator for assistance.' }
+        }
         return { success: false, error: 'Cashier account is not active' }
       }
 
@@ -118,12 +121,56 @@ export class CashierAuthService {
         return { success: false, error: 'No authenticated user' }
       }
 
+      const sessionCashier = session.cashier as CashierWithStatus
+
+      // Refresh cashier status from database
+      try {
+        const { data: cashierData, error: cashierError } = await supabase
+          .from('cashiers')
+          .select(`
+            *,
+            accounts!account_id (
+              *
+            )
+          `)
+          .eq('id', sessionCashier.id)
+          .single()
+
+        if (!cashierError && cashierData) {
+          const formattedCashier = CashierService.formatCashierForDisplay(cashierData)
+          
+          // Update session with latest status
+          CashierSessionManager.setSession(formattedCashier)
+          
+          // Check if cashier is suspended
+          if (formattedCashier.status === 'suspended') {
+            console.warn('⚠️ [CashierAuth] Cashier account is suspended')
+            return { 
+              success: false, 
+              error: 'Your account has been suspended. Please contact the administrator.' 
+            }
+          }
+        }
+      } catch (refreshError) {
+        console.error('⚠️ [CashierAuth] Error refreshing cashier status:', refreshError)
+        // Continue with session data if refresh fails
+      }
+
+      // Check status from session (fallback if refresh failed)
+      if (sessionCashier.status === 'suspended') {
+        console.warn('⚠️ [CashierAuth] Cashier account is suspended')
+        return { 
+          success: false, 
+          error: 'Your account has been suspended. Please contact the administrator.' 
+        }
+      }
+
       // Extend the session
       CashierSessionManager.extendSession()
       
-      console.log('✅ [CashierAuth] Current cashier retrieved from session:', (session.cashier as CashierWithStatus).employee_id)
+      console.log('✅ [CashierAuth] Current cashier retrieved from session:', sessionCashier.employee_id)
       
-      return { success: true, cashier: session.cashier as CashierWithStatus }
+      return { success: true, cashier: sessionCashier }
     } catch (error) {
       console.error('💥 [CashierAuth] Unexpected error getting current cashier:', error)
       return { success: false, error: 'An unexpected error occurred' }

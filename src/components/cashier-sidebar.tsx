@@ -23,7 +23,6 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { CashierWithStatus } from "@/lib/cashier-service"
 import { CashierAuthService } from "@/lib/cashier-auth-service"
@@ -61,6 +60,8 @@ export function CashierSidebar({ cashier, onLogout }: CashierSidebarProps) {
 
   const handleLogout = async () => {
     await CashierAuthService.logout()
+    // Navigate to unified sign-in page
+    router.push('/')
     onLogout()
   }
 
@@ -167,16 +168,21 @@ export function CashierLayout({ children }: CashierLayoutProps) {
       const response = await CashierAuthService.getCurrentCashier()
       
       if (response.success && response.cashier) {
+        // Check if cashier is suspended
+        if (response.cashier.status === 'suspended') {
+          // Still allow access but show warning - don't redirect
+          console.warn('Cashier account is suspended')
+        }
         setCashier(response.cashier)
         // Update last login
         await CashierAuthService.updateLastLogin(response.cashier.id)
       } else {
         // Redirect to unified sign-in page if not authenticated
-        router.push('/signin')
+        router.push('/')
       }
     } catch (error) {
       console.error('Auth check error:', error)
-      router.push('/signin')
+      router.push('/')
     } finally {
       setLoading(false)
     }
@@ -184,7 +190,7 @@ export function CashierLayout({ children }: CashierLayoutProps) {
 
   const handleLogout = () => {
     setCashier(null)
-    router.push('/signin')
+    router.push('/')
   }
 
   React.useEffect(() => {
@@ -218,13 +224,6 @@ export function CashierLayout({ children }: CashierLayoutProps) {
               <p className="text-sm text-muted-foreground">
                 Welcome back, {cashier.full_name}
               </p>
-            </div>
-            <div className="flex items-center gap-2">
-              
-              <Button variant="outline" size="sm" onClick={handleLogout}>
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </Button>
             </div>
           </header>
           <main className="flex-1 p-6">

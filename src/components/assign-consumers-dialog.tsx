@@ -22,6 +22,7 @@ interface AssignConsumersDialogProps {
   onOpenChange: (open: boolean) => void
   meterReaderId: number
   meterReaderName: string
+  onConsumersAssigned?: () => void
 }
 
 interface Consumer {
@@ -42,6 +43,7 @@ export function AssignConsumersDialog({
   onOpenChange,
   meterReaderId,
   meterReaderName,
+  onConsumersAssigned,
 }: AssignConsumersDialogProps) {
   const [consumers, setConsumers] = useState<Consumer[]>([])
   const [filteredConsumers, setFilteredConsumers] = useState<Consumer[]>([])
@@ -255,6 +257,11 @@ export function AssignConsumersDialog({
             : `${assignedCount} consumers assigned`
         }
       )
+
+      // Notify parent to refresh counts
+      if (onConsumersAssigned) {
+        onConsumersAssigned()
+      }
 
       onOpenChange(false)
       setSelectedConsumers(new Set())
