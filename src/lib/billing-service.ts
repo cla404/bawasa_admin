@@ -411,4 +411,63 @@ export class BillingService {
       throw error
     }
   }
+
+  /**
+   * Fetch billing history for a specific consumer by consumer_id
+   */
+  static async getBillingsByConsumerId(consumerId: string): Promise<{ data: BillingWithDetails[] | null; error: unknown }> {
+    try {
+      console.log('🔍 Fetching billings for consumer:', consumerId)
+      
+      const { data: billings, error: billingsError } = await supabase
+        .from('bawasa_billings')
+        .select(`
+          *,
+          consumers!consumer_id (
+            *,
+            accounts!consumer_id (
+              *
+            )
+          ),
+          bawasa_meter_readings!meter_reading_id (
+            *
+          )
+        `)
+        .eq('consumer_id', consumerId)
+        .order('created_at', { ascending: false })
+
+      if (billingsError) {
+        console.error('❌ Billings fetch failed:', billingsError)
+        return { data: null, error: billingsError }
+      }
+
+      if (!billings || billings.length === 0) {
+        console.log('📭 No billings found for consumer')
+        return { data: [], error: null }
+      }
+
+      // Transform the data to match our interface
+      const transformedBillings = billings.map((billing: SupabaseBillingResult): BillingWithDetails => {
+        const consumer = billing.consumers
+        const account = consumer?.accounts
+        const meterReading = billing.bawasa_meter_readings
+
+        return {
+          ...billing,
+          consumer: consumer ? {
+            ...consumer,
+            accounts: account || undefined
+          } : undefined,
+          account: account || undefined,
+          meter_reading: meterReading || undefined
+        } as BillingWithDetails
+      })
+
+      console.log('✅ Successfully fetched billings:', transformedBillings.length, 'billings')
+      return { data: transformedBillings, error: null }
+    } catch (error) {
+      console.error('💥 Unexpected error fetching billings:', error)
+      return { data: null, error }
+    }
+  }
 }

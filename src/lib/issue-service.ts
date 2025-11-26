@@ -380,4 +380,60 @@ export class IssueService {
       return { data: null, error }
     }
   }
+
+  /**
+   * Fetch issue reports for a specific consumer by consumer_id
+   */
+  static async getIssuesByConsumerId(consumerId: string): Promise<{ data: IssueReportWithUser[] | null; error: any }> {
+    try {
+      console.log('🔍 Fetching issue reports for consumer:', consumerId)
+      
+      const { data: issues, error } = await supabase
+        .from('issue_report')
+        .select(`
+          id,
+          issue_type,
+          priority,
+          issue_title,
+          description,
+          issue_images,
+          created_at,
+          consumer_id,
+          status,
+          scheduled_fix_date,
+          assigned_technician,
+          consumers!consumer_id (
+            accounts!consumer_id (
+              full_name,
+              email,
+              mobile_no
+            )
+          )
+        `)
+        .eq('consumer_id', consumerId)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('❌ Issues fetch failed:', error)
+        return { data: null, error }
+      }
+
+      // Transform the data to include user information
+      const transformedData = (issues || []).map(issue => {
+        const account = (issue.consumers as any)?.accounts
+        return {
+          ...issue,
+          user_name: account?.full_name || 'Unknown User',
+          user_email: account?.email || null,
+          user_phone: account?.mobile_no || null
+        }
+      })
+
+      console.log('✅ Successfully fetched issue reports:', transformedData.length, 'issues')
+      return { data: transformedData, error: null }
+    } catch (error) {
+      console.error('💥 Unexpected error fetching issue reports:', error)
+      return { data: null, error }
+    }
+  }
 }

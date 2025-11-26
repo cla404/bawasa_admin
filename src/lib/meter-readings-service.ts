@@ -482,6 +482,66 @@ export class MeterReadingsService {
   }
 
   /**
+   * Fetch meter readings for a specific consumer by consumer_id
+   */
+  static async getMeterReadingsByConsumerId(consumerId: string): Promise<MeterReadingWithUser[]> {
+    try {
+      const { data, error } = await supabase
+        .from('bawasa_meter_readings')
+        .select(`
+          *,
+          consumers!consumer_id (
+            water_meter_no,
+            consumer_id,
+            accounts!consumer_id (
+              email,
+              full_name
+            )
+          ),
+          bawasa_billings!meter_reading_id (
+            payment_status,
+            billing_month
+          )
+        `)
+        .eq('consumer_id', consumerId)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching meter readings by consumer ID:', error)
+        throw new Error(`Failed to fetch meter readings: ${error.message}`)
+      }
+
+      // Transform the data to match our interface
+      return (data || []).map((reading: SupabaseMeterReadingResult) => {
+        const consumer = reading.consumers
+        const account = consumer?.accounts
+        const billing = reading.bawasa_billings
+        
+        return {
+          id: reading.id,
+          consumer_id: reading.consumer_id,
+          reading_date: reading.reading_date,
+          meter_reading_date: reading.reading_date, // Alias for compatibility
+          previous_reading: reading.previous_reading,
+          present_reading: reading.present_reading,
+          consumption_cubic_meters: reading.consumption_cubic_meters,
+          meter_image: reading.meter_image || null,
+          created_at: reading.created_at,
+          updated_at: reading.updated_at,
+          water_meter_no: consumer?.water_meter_no || '',
+          user_email: account?.email || '',
+          user_name: account?.full_name || 'Unknown User',
+          payment_status: (billing?.[0]?.payment_status as 'unpaid' | 'partial' | 'paid' | 'overdue') || 'unpaid',
+          billing_month: billing?.[0]?.billing_month || undefined
+        }
+      })
+    } catch (error) {
+      console.error('Error in getMeterReadingsByConsumerId:', error)
+      throw error
+    }
+  }
+
+  /**
    * Create empty meter readings for all consumers for a new billing month
    * This is called when transitioning to a new billing month
    * Meter readers will fill in the readings via the mobile app

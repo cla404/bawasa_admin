@@ -357,6 +357,138 @@ export class MeterReaderService {
   }
 
   /**
+   * Suspend a meter reader (sets status to 'suspended')
+   */
+  static async suspendMeterReader(id: string): Promise<{ data: MeterReaderUser | null; error: any }> {
+    try {
+      // Update the meter reader status to 'suspended'
+      const { data: meterReaderData, error: meterReaderError } = await supabase
+        .from('bawasa_meter_reader')
+        .update({ status: 'suspended' })
+        .eq('reader_id', id)
+        .select()
+        .single()
+
+      if (meterReaderError) {
+        // If meter reader record doesn't exist, create it
+        if (meterReaderError.code === 'PGRST116') {
+          const { data: newMeterReader, error: createError } = await supabase
+            .from('bawasa_meter_reader')
+            .insert({ reader_id: id, status: 'suspended' })
+            .select()
+            .single()
+
+          if (createError) {
+            return { data: null, error: createError }
+          }
+
+          // Get the account data
+          const { data: accountData } = await supabase
+            .from('accounts')
+            .select('*')
+            .eq('id', id)
+            .single()
+
+          return {
+            data: {
+              ...accountData,
+              meter_reader_id: newMeterReader.id,
+              status: 'suspended'
+            } as MeterReaderUser,
+            error: null
+          }
+        }
+        return { data: null, error: meterReaderError }
+      }
+
+      // Get the account data
+      const { data: accountData } = await supabase
+        .from('accounts')
+        .select('*')
+        .eq('id', id)
+        .single()
+
+      return {
+        data: {
+          ...accountData,
+          meter_reader_id: meterReaderData.id,
+          status: 'suspended'
+        } as MeterReaderUser,
+        error: null
+      }
+    } catch (error) {
+      console.error('Error suspending meter reader:', error)
+      return { data: null, error }
+    }
+  }
+
+  /**
+   * Unsuspend a meter reader (sets status to 'active' or null)
+   */
+  static async unsuspendMeterReader(id: string): Promise<{ data: MeterReaderUser | null; error: any }> {
+    try {
+      // Update the meter reader status to 'active'
+      const { data: meterReaderData, error: meterReaderError } = await supabase
+        .from('bawasa_meter_reader')
+        .update({ status: 'active' })
+        .eq('reader_id', id)
+        .select()
+        .single()
+
+      if (meterReaderError) {
+        // If meter reader record doesn't exist, create it
+        if (meterReaderError.code === 'PGRST116') {
+          const { data: newMeterReader, error: createError } = await supabase
+            .from('bawasa_meter_reader')
+            .insert({ reader_id: id, status: 'active' })
+            .select()
+            .single()
+
+          if (createError) {
+            return { data: null, error: createError }
+          }
+
+          // Get the account data
+          const { data: accountData } = await supabase
+            .from('accounts')
+            .select('*')
+            .eq('id', id)
+            .single()
+
+          return {
+            data: {
+              ...accountData,
+              meter_reader_id: newMeterReader.id,
+              status: 'active'
+            } as MeterReaderUser,
+            error: null
+          }
+        }
+        return { data: null, error: meterReaderError }
+      }
+
+      // Get the account data
+      const { data: accountData } = await supabase
+        .from('accounts')
+        .select('*')
+        .eq('id', id)
+        .single()
+
+      return {
+        data: {
+          ...accountData,
+          meter_reader_id: meterReaderData.id,
+          status: 'active'
+        } as MeterReaderUser,
+        error: null
+      }
+    } catch (error) {
+      console.error('Error unsuspending meter reader:', error)
+      return { data: null, error }
+    }
+  }
+
+  /**
    * Search meter readers by name or email
    */
   static async searchMeterReaders(query: string): Promise<{ data: MeterReaderUser[] | null; error: any }> {

@@ -18,6 +18,7 @@ export interface Account {
   full_address: string | null
   mobile_no: number | null
   user_type: string | null
+  status?: string | null
 }
 
 export interface MeterReading {
@@ -331,6 +332,56 @@ export class ConsumerService {
     return {
       ...consumer,
       status: this.getConsumerStatus(consumer)
+    }
+  }
+
+  /**
+   * Suspend a consumer (sets status to 'suspended' in accounts table)
+   */
+  static async suspendConsumer(accountId: number): Promise<{ data: Account | null; error: any }> {
+    try {
+      const { data, error } = await supabase
+        .from('accounts')
+        .update({ status: 'suspended' })
+        .eq('id', accountId)
+        .eq('user_type', 'consumer')
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error suspending consumer:', error)
+        return { data: null, error }
+      }
+
+      return { data, error: null }
+    } catch (error) {
+      console.error('Error suspending consumer:', error)
+      return { data: null, error }
+    }
+  }
+
+  /**
+   * Unsuspend a consumer (sets status to 'active' in accounts table)
+   */
+  static async unsuspendConsumer(accountId: number): Promise<{ data: Account | null; error: any }> {
+    try {
+      const { data, error } = await supabase
+        .from('accounts')
+        .update({ status: 'active' })
+        .eq('id', accountId)
+        .eq('user_type', 'consumer')
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error unsuspending consumer:', error)
+        return { data: null, error }
+      }
+
+      return { data, error: null }
+    } catch (error) {
+      console.error('Error unsuspending consumer:', error)
+      return { data: null, error }
     }
   }
 }
