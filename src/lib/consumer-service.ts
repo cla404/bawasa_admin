@@ -384,4 +384,80 @@ export class ConsumerService {
       return { data: null, error }
     }
   }
+
+  /**
+   * Change/Reset meter for a consumer
+   * This creates a new meter reading record with a fresh starting point (0)
+   * The meter number stays the same, but readings restart from 0
+   * Also records the final reading before the meter change for billing purposes
+   * Uses API route to bypass RLS with service role key
+   */
+  static async changeMeter(
+    consumerId: string,
+    newStartingReading: number,
+    effectiveDate: string,
+    reason: string,
+    readingBeforeChange?: number // Final reading on old meter before change
+  ): Promise<{ data: MeterReading | null; error: Error | null }> {
+    try {
+      console.log('🔧 [ConsumerService] Changing meter for consumer:', consumerId)
+      console.log('📊 [ConsumerService] New starting reading:', newStartingReading)
+      console.log('📊 [ConsumerService] Reading before change:', readingBeforeChange)
+      console.log('📅 [ConsumerService] Effective date:', effectiveDate)
+      console.log('📝 [ConsumerService] Reason:', reason)
+
+      // Call API route which uses service role key to bypass RLS
+      const response = await fetch('/api/admin/change-meter', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          consumerId,
+          newStartingReading,
+          effectiveDate,
+          reason,
+          readingBeforeChange
+        })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        console.error('❌ [ConsumerService] Error creating meter change reading:', result.error)
+        return { data: null, error: new Error(result.error || 'Failed to change meter') }
+      }
+
+      console.log('✅ [ConsumerService] Meter change recorded successfully:', result.data)
+      return { data: result.data, error: null }
+    } catch (error) {
+      console.error('💥 [ConsumerService] Unexpected error changing meter:', error)
+      return { data: null, error: error instanceof Error ? error : new Error('An unexpected error occurred') }
+    }
+  }
+
+  /**
+   * Get meter change history for a consumer
+   * Returns all meter readings that have "METER CHANGE" in remarks
+   */
+  static async getMeterChangeHistory(consumerId: string): Promise<{ data: MeterReading[] | null; error: Error | null }> {
+    try {
+      const { data, error } = await supabase
+        .from('bawasa_meter_readings')
+        .select('*')
+        .eq('consumer_id', consumerId)
+        .ilike('remarks', '%METER CHANGE%')
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching meter change history:', error)
+        return { data: null, error: new Error(error.message) }
+      }
+
+      return { data: data || [], error: null }
+    } catch (error) {
+      console.error('Error fetching meter change history:', error)
+      return { data: null, error: error instanceof Error ? error : new Error('An unexpected error occurred') }
+    }
+  }
 }

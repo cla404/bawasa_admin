@@ -40,7 +40,10 @@ import { ViewConsumerDetailsDialog } from "@/components/view-consumer-details-di
 import { ConsumerMeterReadingHistoryDialog } from "@/components/consumer-meter-reading-history-dialog"
 import { ConsumerBillingPaymentHistoryDialog } from "@/components/consumer-billing-payment-history-dialog"
 import { ConsumerMaintenanceReportHistoryDialog } from "@/components/consumer-maintenance-report-history-dialog"
-import { Droplets, Receipt, Wrench } from "lucide-react"
+import { ChangeMeterDialog } from "@/components/change-meter-dialog"
+import { MeterChangeHistoryDialog } from "@/components/meter-change-history-dialog"
+import { BAWASABillingCalculator } from "@/lib/bawasa-billing-calculator"
+import { Droplets, Receipt, Wrench, RefreshCcw, History, Vote, Percent } from "lucide-react"
 
 export default function ConsumerManagementPage() {
   const [consumers, setConsumers] = useState<ConsumerWithStatus[]>([])
@@ -53,6 +56,8 @@ export default function ConsumerManagementPage() {
   const [meterReadingDialogOpen, setMeterReadingDialogOpen] = useState(false)
   const [billingDialogOpen, setBillingDialogOpen] = useState(false)
   const [maintenanceDialogOpen, setMaintenanceDialogOpen] = useState(false)
+  const [changeMeterDialogOpen, setChangeMeterDialogOpen] = useState(false)
+  const [meterChangeHistoryDialogOpen, setMeterChangeHistoryDialogOpen] = useState(false)
 
   // Fetch consumers from Supabase
   const fetchConsumers = async () => {
@@ -112,6 +117,18 @@ export default function ConsumerManagementPage() {
   const handleViewMaintenanceHistory = (consumer: ConsumerWithStatus) => {
     setSelectedConsumer(consumer)
     setMaintenanceDialogOpen(true)
+  }
+
+  // Handle opening change meter dialog
+  const handleChangeMeter = (consumer: ConsumerWithStatus) => {
+    setSelectedConsumer(consumer)
+    setChangeMeterDialogOpen(true)
+  }
+
+  // Handle opening meter change history dialog
+  const handleViewMeterChangeHistory = (consumer: ConsumerWithStatus) => {
+    setSelectedConsumer(consumer)
+    setMeterChangeHistoryDialogOpen(true)
   }
 
   // Handle suspending a consumer
@@ -180,6 +197,53 @@ export default function ConsumerManagementPage() {
       month: 'short',
       day: 'numeric'
     })
+  }
+
+  // Get discount info for a consumer
+  const getDiscountInfo = (consumer: ConsumerWithStatus) => {
+    const isRegisteredVoter = consumer.registered_voter === true
+    const accountCreatedAt = consumer.account?.created_at || consumer.created_at
+    
+    if (!isRegisteredVoter) {
+      return {
+        hasDiscount: false,
+        percentage: 0,
+        yearsOfService: 0,
+        text: 'No discount',
+        color: 'bg-gray-100 text-gray-600'
+      }
+    }
+    
+    const discountInfo = BAWASABillingCalculator.getDiscountInfo({
+      isRegisteredVoter,
+      accountCreatedAt
+    })
+    
+    if (discountInfo.discountPercentage === 0) {
+      return {
+        hasDiscount: false,
+        percentage: 0,
+        yearsOfService: discountInfo.yearsOfService,
+        text: 'Year 1 (0%)',
+        color: 'bg-blue-50 text-blue-600'
+      }
+    } else if (discountInfo.discountPercentage === 1) {
+      return {
+        hasDiscount: true,
+        percentage: 100,
+        yearsOfService: discountInfo.yearsOfService,
+        text: 'FREE',
+        color: 'bg-green-100 text-green-700'
+      }
+    } else {
+      return {
+        hasDiscount: true,
+        percentage: discountInfo.discountPercentage * 100,
+        yearsOfService: discountInfo.yearsOfService,
+        text: `${(discountInfo.discountPercentage * 100).toFixed(0)}% off`,
+        color: 'bg-emerald-50 text-emerald-600'
+      }
+    }
   }
 
   // Load consumers on component mount
@@ -263,6 +327,7 @@ export default function ConsumerManagementPage() {
                     <TableHead>Water Meter</TableHead>
                     <TableHead>Contact</TableHead>
                     <TableHead>Date Joined</TableHead>
+                    <TableHead>Discount</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -304,6 +369,42 @@ export default function ConsumerManagementPage() {
                           {formatDate(consumer.created_at)}
                         </div>
                       </TableCell>
+                      <TableCell>
+                        {(() => {
+                          const discount = getDiscountInfo(consumer)
+                          return (
+                            <div className="flex flex-col gap-1">
+                              {consumer.registered_voter ? (
+                                <>
+                                  <Badge className={`w-fit ${discount.color}`}>
+                                    {discount.percentage === 100 ? (
+                                      <span className="flex items-center">
+                                        <Percent className="h-3 w-3 mr-1" />
+                                        {discount.text}
+                                      </span>
+                                    ) : discount.percentage > 0 ? (
+                                      <span className="flex items-center">
+                                        <Percent className="h-3 w-3 mr-1" />
+                                        {discount.text}
+                                      </span>
+                                    ) : (
+                                      <span>{discount.text}</span>
+                                    )}
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground flex items-center">
+                                    <Vote className="h-3 w-3 mr-1 text-green-600" />
+                                    Voter · Yr {discount.yearsOfService}
+                                  </span>
+                                </>
+                              ) : (
+                                <Badge variant="outline" className="w-fit text-gray-500">
+                                  No discount
+                                </Badge>
+                              )}
+                            </div>
+                          )
+                        })()}
+                      </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -329,6 +430,15 @@ export default function ConsumerManagementPage() {
                             <DropdownMenuItem onClick={() => handleViewMaintenanceHistory(consumer)}>
                               <Wrench className="h-4 w-4 mr-2" />
                               Maintenance Report History
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleChangeMeter(consumer)}>
+                              <RefreshCcw className="h-4 w-4 mr-2" />
+                              Change Meter
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleViewMeterChangeHistory(consumer)}>
+                              <History className="h-4 w-4 mr-2" />
+                              Meter Change History
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             {consumer.account?.status === 'suspended' ? (
@@ -365,6 +475,7 @@ export default function ConsumerManagementPage() {
         consumer={selectedConsumer}
         open={detailsDialogOpen}
         onOpenChange={setDetailsDialogOpen}
+        onConsumerUpdated={fetchConsumers}
       />
 
       {/* Meter Reading History Dialog */}
@@ -386,6 +497,21 @@ export default function ConsumerManagementPage() {
         consumer={selectedConsumer}
         open={maintenanceDialogOpen}
         onOpenChange={setMaintenanceDialogOpen}
+      />
+
+      {/* Change Meter Dialog */}
+      <ChangeMeterDialog
+        consumer={selectedConsumer}
+        open={changeMeterDialogOpen}
+        onOpenChange={setChangeMeterDialogOpen}
+        onMeterChanged={fetchConsumers}
+      />
+
+      {/* Meter Change History Dialog */}
+      <MeterChangeHistoryDialog
+        consumer={selectedConsumer}
+        open={meterChangeHistoryDialogOpen}
+        onOpenChange={setMeterChangeHistoryDialogOpen}
       />
     </AdminLayout>
   )

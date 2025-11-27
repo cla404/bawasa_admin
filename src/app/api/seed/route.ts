@@ -547,18 +547,13 @@ async function generateConsumerData(
       meterReadings.push(meterReading)
       
       // Calculate billing - use amount from data if available, otherwise calculate
-      const fiscalYear = year
-      let billingCalc
+      // For seed data, we use the provided amounts (no consumer discount info needed)
+      let billingCalc = BAWASABillingCalculator.calculateBilling(consumption)
       const amountFromData = monthData?.amount
       
       if (amountFromData && amountFromData > 0) {
-        // Reverse calculate consumption from amount to match billing structure
-        // This is approximate - we'll use the actual consumption for calculations
-        billingCalc = BAWASABillingCalculator.calculateBilling(consumption, fiscalYear)
         // Override amount_current_billing with the actual amount from data
         billingCalc.amount_current_billing = amountFromData
-      } else {
-        billingCalc = BAWASABillingCalculator.calculateBilling(consumption, fiscalYear)
       }
       
       // Generate payment status (more recent months more likely unpaid)
